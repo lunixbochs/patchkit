@@ -12,9 +12,12 @@ patchdir
 Contains one or more Python patch files, which will be executed in alphabetical order against a binary.
 
 
-Patch Example
+Patch Examples
 ----
-    def patch(pt):
+
+Nopping an address, injecting an assembly function, and hooking the entry point:
+
+    def simple_patch(pt):
         # nop out a jump at the entry point
         pt.patch(pt.entry, hex='90' * 5)
 
@@ -23,6 +26,22 @@ Patch Example
 
         # hook the entry point to make it call addr (ret will run the original entry point)
         pt.hook(pt.entry, addr)
+
+Replacing a C function:
+
+    def replace_free(pt):
+        # pretend free() is at this address:
+        old_free = 0x804fc4
+
+        # inject a function to replace free()
+        new_free = pt.inject(c=r'''
+        void free_stub(void *addr) {
+            printf("stubbed free(%p)\n", addr);
+        }
+        ''')
+
+        # patch the beginning of free() with a jump to our new function
+        pt.patch(old_free, jmp=new_free)
 
 
 API
