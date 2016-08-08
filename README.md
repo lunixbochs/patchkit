@@ -64,6 +64,6 @@ Dependencies
 ----
 * Capstone Engine - https://github.com/aquynh/capstone.git
 * Keystone Engine - https://github.com/keystone-engine/keystone.git
-* Unicorn Engine  - https://github.com/unicorn-engine/keystone.git
+* Unicorn Engine  - https://github.com/unicorn-engine/unicorn.git
 * Python bindings for the above: `cd bindings/python; sudo make install`
 * Python coding library: `pip install coding`
