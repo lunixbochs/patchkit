@@ -8,12 +8,14 @@ import traceback
 from binary import Binary
 
 class Patcher:
-    def __init__(self, binary, verbose=False):
+    def __init__(self, binary, verbose=False, cflags=None):
         self.bin = Binary(binary)
         self.bin.verbose = verbose
+        self.bin.linker.cflags = cflags
         self.patches = []
         self.patchfiles = []
         self.verbose = verbose
+        self.cflags = cflags
 
     def add(self, path):
         if path.endswith('.py'):

@@ -20,6 +20,7 @@ class Decl:
         self.syms = syms or {}
         self.source = source
         self._headers = headers
+        self.cflags = None
 
     @property
     def headers(self):

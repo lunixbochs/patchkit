@@ -1,4 +1,5 @@
 import re
+import shlex
 import subprocess
 
 # TODO: last few args are optional, but clang emits them so I'll deal with it if it breaks
@@ -87,13 +88,16 @@ def clean(asm):
 compiler_version = None
 def compile(code, linker, syms=()):
     global compiler_version
-    cflags = ['-mno-sse', '-Os', '-std=c99', '-fno-pic', '-m32', '-ffreestanding', '-fno-stack-protector']
+    cflags = ['-mno-sse', '-Os', '-std=c99', '-fno-pic', '-ffreestanding', '-fno-stack-protector']
 
     if compiler_version is None:
         compiler_version = subprocess.check_output(['gcc', '--version'])
 
     if 'gcc' in compiler_version and not 'clang' in compiler_version:
         cflags += ['-fleading-underscore', '-fno-toplevel-reorder']
+
+    if linker.cflags:
+        cflags += shlex.split(linker.cflags)
 
     code = linker.pre(code, syms=syms)
     p = subprocess.Popen(['gcc', '-xc', '-S', '-o-', '-'] + cflags, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
