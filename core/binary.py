@@ -101,5 +101,9 @@ class Binary:
             with self.collect() as pt:
                 cb(pt)
 
+        for prog in (self.patch, self.nxpatch, self.linkpatch, self.jitpatch):
+            if not prog.filesz:
+                self.elf.progs.remove(prog)
+
         self.elf.save(path)
         os.chmod(path, 0755)
