@@ -576,12 +576,14 @@ class ElfFile(StructBase):
                 p.memsz = max(p.memsz, p.filesz)
                 phoff = p.offset + p.filesz
 
-                phdr.offset = phoff
-                phdr.vaddr = p.vaddr + phoff
-                phdr.filesz = len(self.progs) * self.header.phentsize
-                phdr.virtual = True
+                phsize = len(self.progs) * self.header.phentsize
+                if phdr:
+                    phdr.offset = phoff
+                    phdr.vaddr = p.vaddr + phoff
+                    phdr.filesz = phsize
+                    phdr.virtual = True
 
-                x += p.filesz + phdr.filesz
+                x += p.filesz + phsize
                 break
         else:
             print("Warning: did not relocate phdr.")
