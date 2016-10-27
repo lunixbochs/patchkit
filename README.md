@@ -63,7 +63,7 @@ IDA scripts
 ----
 Some scripts live in the ida/ path. Run them like this:
 
-    /Applications/IDA\ Pro\ 6.8/idaq.app/Contents/MacOS/idaq64 -A -B -Sida/allfuncs.py a.out
+    /Applications/IDA\ Pro\ 6.8/idaq.app/Contents/MacOS/idaq64 -A -Sida/allfuncs.py a.out
 
 When invoked like this, allfuncs.py will generate `a.out.funcs` which is used by hardening scripts.
 
