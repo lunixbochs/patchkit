@@ -78,3 +78,7 @@ class x86_64(x86):
         pop rsi
         pop rdi
         ''' % (size, dst, src)
+
+class arm(Arch):
+    _cs = CS_ARCH_ARM, CS_MODE_ARM
+    _ks = KS_ARCH_ARM, KS_MODE_ARM

@@ -16,8 +16,10 @@ class Context(object):
         machine = EM.bycode[binary.elf.header.machine]
         if machine == EM.byname['EM_386']:
             self.arch = arch.x86()
-        elif EM.byname['EM_X86_64']:
+        elif machine == EM.byname['EM_X86_64']:
             self.arch = arch.x86_64()
+        elif machine == EM.byname['EM_ARM']:
+            self.arch = arch.arm()
         else:
             raise NotImplementedError("Unknown machine: %s" % machine)
 

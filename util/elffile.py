@@ -563,14 +563,14 @@ class ElfFile(StructBase):
         # find the PHDR
         phdr = None
         for ph in self.progs:
-            if PT.bycode[ph.type] == PT.byname['PT_PHDR']:
+            if PT.bycode.get(ph.type) == PT.byname['PT_PHDR']:
                 phdr = ph
                 break
 
         pdoff = x
 
         for p in self.progs:
-            if p.offset == 0 and PT.bycode[p.type] == PT.byname['PT_LOAD']:
+            if p.offset == 0 and PT.bycode.get(p.type) == PT.byname['PT_LOAD']:
                 # HACK: put PHDR at the end of the first segment
                 p.filesz = len(p.data)
                 p.memsz = max(p.memsz, p.filesz)
@@ -586,10 +586,13 @@ class ElfFile(StructBase):
                 x += p.filesz + phsize
                 break
         else:
-            print("Warning: did not relocate phdr.")
+            print("Warning: did not relocate PHDR.")
+            phoff = x
+            phsize = len(self.progs) * self.header.phentsize
+            x += phsize
 
         for p in self.progs:
-            if p.virtual or not PT.bycode[p.type] == PT.byname['PT_LOAD']:
+            if p.virtual or not PT.bycode.get(p.type) == PT.byname['PT_LOAD']:
                 continue
             p.filesz = len(p.data)
             p.memsz = max(p.memsz, p.filesz)
@@ -690,7 +693,7 @@ class ElfFile(StructBase):
             if prog.virtual:
                 continue
 
-            if PT.bycode[prog.type] == PT.byname['PT_LOAD'] and prog.offset == 0:
+            if PT.bycode.get(prog.type) == PT.byname['PT_LOAD'] and prog.offset == 0:
                 block[offset:prog.filesz - offset] = prog.data[offset:]
             else:
                 block[prog.offset:prog.offset + prog.filesz] = prog.data
