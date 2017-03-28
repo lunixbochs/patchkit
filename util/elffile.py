@@ -33,7 +33,19 @@ import operator
 import os
 import struct
 
-import coding
+# simplified reimplementation of coding.Coding
+class Coding:
+    byname = {}
+    bycode = {}
+
+    def __init__(self, name='', code=0, desc=''):
+        self.name = name
+        self.code = code
+        self.desc = desc
+
+        self.byname[name] = self
+        self.bycode[code] = self
+
 
 def open(name=None, fileobj=None, map=None, block=None):
     """
@@ -175,7 +187,7 @@ class ElfFileIdent(StructBase):
 
     Most attributes are :py:class:`int`'s.  Some have encoded meanings
     which can be decoded with the accompanying
-    :py:class:`coding.Coding` subclasses.
+    :py:class:`Coding` subclasses.
     """
 
     magic = None
@@ -273,12 +285,12 @@ class ElfFileIdent(StructBase):
                     'abiversion': self.abiversion,
                 })
 
-class ElfClass(coding.Coding):
+class ElfClass(Coding):
     """
     Encodes the word size of the elf file as from the `ident portion
     of the ELF file header
     <http://www.sco.com/developers/gabi/latest/ch4.eheader.html#elfid>`_.
-    This is a subclass of :py:class:`coding.Coding` and encodes
+    This is a subclass of :py:class:`Coding` and encodes
     :py:attr:`ElfFileIdent.elfClass`.
     """
     bycode = byname = {}
@@ -288,12 +300,12 @@ ElfClass('ELFCLASS32', 1, '32-bit objects')
 ElfClass('ELFCLASS64', 2, '64-bit objects')
 ElfClass('ELFCLASSNUM', 3, '')          # from libelf
 
-class ElfData(coding.Coding):
+class ElfData(Coding):
     """
     Encodes the byte-wise endianness of the elf file as from the
     `ident portion of the elf file header
     <http://www.sco.com/developers/gabi/latest/ch4.eheader.html#elfid>`_.
-    This is a subclass of :py:class:`coding.Coding` and encodes
+    This is a subclass of :py:class:`Coding` and encodes
     :py:attr:`ElfFileIdent.elfData`.
     """
     bycode = byname = {}
@@ -303,11 +315,11 @@ ElfData('ELFDATA2LSB', 1, 'least significant byte first')
 ElfData('ELFDATA2MSB', 2, 'most significant byte first')
 ElfData('ELFDATANUM', 3, '')
 
-class EV(coding.Coding):
+class EV(Coding):
     """
     Encodes the elf file format version of this elf file as from the `ident portion of the elf file
     header
-    <http://www.sco.com/developers/gabi/latest/ch4.eheader.html#elfid>`_.  This is a subclass of :py:class:`coding.Coding`.
+    <http://www.sco.com/developers/gabi/latest/ch4.eheader.html#elfid>`_.  This is a subclass of :py:class:`Coding`.
     """
     bycode = byname = {}
 
@@ -315,13 +327,13 @@ EV('EV_NONE', 0, 'Invalid version')
 EV('EV_CURRENT', 1, 'Current version')
 EV('EV_NUM', 2, '')
 
-class ElfOsabi(coding.Coding):
+class ElfOsabi(Coding):
     """
     Encodes OSABI values which represent operating system ELF format
     extensions as from the `'ident' portion of the elf file header
     <http://www.sco.com/developers/gabi/latest/ch4.eheader.html#elfid>`_.
 
-    This is a subclass of :py:class:`coding.Coding` which codes :py:attr:`ElfFileIdent.osabi`.
+    This is a subclass of :py:class:`Coding` which codes :py:attr:`ElfFileIdent.osabi`.
     """
     bycode = byname = {}
     overload_codes = True
@@ -896,7 +908,7 @@ class ElfFileHeader(StructBase):
 
     Most attributes are :py:class:`int`'s.  Some have encoded meanings
     which can be decoded with the accompanying
-    :py:class:`coding.Coding` subclasses.
+    :py:class:`Coding` subclasses.
 
     This abstract base class works in tight concert with it's
     subclasses: :py:class:`ElfFileHeader32b`,
@@ -1108,12 +1120,12 @@ class ElfFileHeader64l(ElfFileHeader):
     """
     coder = struct.Struct(b'<HHIQQQIHHHHHH')
 
-class ET(coding.Coding):
+class ET(Coding):
     """
     Encodes the type of this elf file, (relocatable, executable,
     shared library, etc.), as represented in the `ELF file header
     <http://www.sco.com/developers/gabi/latest/ch4.eheader.html>`_.
-    This is a subclass of :py:class:`coding.Coding` and encodes
+    This is a subclass of :py:class:`Coding` and encodes
     :py:attr:`ElfFileHeader.type`.
     """
     bycode = byname = {}
@@ -1129,12 +1141,12 @@ ET('ET_HIOS', 0xfeff, 'Operating system-specific')
 ET('ET_LOPROC', 0xff00, 'Processor-specific')
 ET('ET_HIPROC', 0xffff, 'Processor-specific')
 
-class EM(coding.Coding):
+class EM(Coding):
     """
     Encodes the processor type represented in this elf file as
     recorded in the `ELF file header <http://www.sco.com/developers/gabi/latest/ch4.eheader.html>`_.
 
-    This is a subclass of :py:class:`coding.Coding` and encodes
+    This is a subclass of :py:class:`Coding` and encodes
     :py:attr:`ElfFileHeader.machine`.
     """
     bycode = byname = {}
@@ -1304,7 +1316,7 @@ class ElfSectionHeader(StructBase):
 
     Most attributes are :py:class:`int`'s.  Some have encoded meanings
     which can be decoded with the accompanying
-    :py:class:`coding.Coding` subclasses.
+    :py:class:`Coding` subclasses.
 
     This abstract base class works in tight concert with it's
     subclasses: :py:class:`ElfSectionHeader32b`,
@@ -1479,11 +1491,11 @@ class ElfSectionHeader64l(ElfSectionHeader):
     """
     coder = struct.Struct(b'<IIQQQQIIQQ')
 
-class SHN(coding.Coding):
+class SHN(Coding):
     """
     Encodes special section indices into the section header table.
 
-    This is a subclass of :py:class:`coding.Coding`.
+    This is a subclass of :py:class:`Coding`.
     """
     bycode = byname = {}
     overload_codes = True
@@ -1509,13 +1521,13 @@ SHN('SHN_XINDEX', 0xffff, 'This value is an escape value. It indicates'
 SHN('SHN_HIRESERVE', 0xffff, 'specifies the upper bound of the range of'
     ' reserved indexes')
 
-class SHT(coding.Coding):
+class SHT(Coding):
     """
     Encodes the type of a section as represented in the section header
     entry of `the section header table
     <http://www.sco.com/developers/gabi/latest/ch4.sheader.html#section_header>`_.
 
-    This is a subclass of :py:class:`coding.Coding` and encodes
+    This is a subclass of :py:class:`Coding` and encodes
     :py:attr:`ElfSectionHeader.type`.
     """
     bycode = byname = {}
@@ -1567,13 +1579,13 @@ SHT('SHT_HIPROC', 0x7fffffff, '')
 SHT('SHT_LOUSER', 0x80000000, '')
 SHT('SHT_HIUSER', 0xffffffff, '')
 
-class SHF(coding.Coding):
+class SHF(Coding):
     """
     Encodes the section flags as represented in the section header
     entry of `the section header table
     <http://www.sco.com/developers/gabi/latest/ch4.sheader.html#section_header>`_.
 
-    This is a subclass of :py:class:`coding.Coding` and encodes
+    This is a subclass of :py:class:`Coding` and encodes
     :py:attr:`ElfSectionHeader.flags`.  These are bit flags which are
     or'd together.
     """
@@ -1607,7 +1619,7 @@ class ElfProgramHeader(StructBase):
     
     Most attributes are :py:class:`int`'s.  Some have encoded meanings
     which can be decoded with the accompanying
-    :py:class:`coding.Coding` subclasses.
+    :py:class:`Coding` subclasses.
 
     This abstract base class works in tight concert with it's
     subclasses: :py:class:`ElfProgramHeader32b`,
@@ -1720,12 +1732,12 @@ class ElfProgramHeader(StructBase):
     def __contains__(self, vaddr):
         return vaddr >= self.vaddr and vaddr < self.vaddr + self.vsize
 
-class PT(coding.Coding):
+class PT(Coding):
     """
     Encodes the segment type as recorded in the `program header
     <http://www.sco.com/developers/gabi/latest/ch5.pheader.html>`_.
 
-    This is a subclass of :py:class:`coding.Coding` and encodes
+    This is a subclass of :py:class:`Coding` and encodes
     :py:attr:`ElfProgramHeader.type`.
     """
     bycode = byname = {}
@@ -1755,12 +1767,12 @@ PT('PT_LOPROC', 0x70000000, '')
 PT('PT_HIPROC', 0x7fffffff, '')
 
 
-class PF(coding.Coding):
+class PF(Coding):
     """
     Encodes the segment flags as recorded in the `program header
     <http://www.sco.com/developers/gabi/latest/ch5.pheader.html>`_.
 
-    This is a subclass of :py:class:`coding.Coding` and encodes
+    This is a subclass of :py:class:`Coding` and encodes
     :py:attr:`ElfProgramHeader.flags`.
     """
 
@@ -1898,7 +1910,7 @@ appropriate subclass to represent a file based on a
 :py:class:`ElfFileIdent`.
 """
 
-class GRP(coding.Coding):
+class GRP(Coding):
     bycode = byname = {}
 
 GRP('GRP_COMDAT', 0x1, 'This is a COMDAT group')
