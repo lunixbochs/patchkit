@@ -11,6 +11,9 @@ class Arch:
     def asm(self, asm, addr=0, att_syntax=False):
         if not asm:
             return ''
+        # asm start label for use with relative offsets
+        asm = '_PKST_:;' + asm
+
         saved = self.ks.syntax
         if att_syntax:
             self.ks.syntax = KS_OPT_SYNTAX_ATT
@@ -43,21 +46,29 @@ class x86(Arch):
     def ret(self): return 'ret;'
     def nop(self): return 'nop;'
 
+    # memcpy should be pc-relative
+    # dst and src are offsets from the _PKST_ label
     def memcpy(self, dst, src, size):
         return '''
         push edi
         push esi
         push ecx
+
+        call ref
+        ref: pop edi
+        sub edi, ref - _PKST_
+        mov esi, edi
+
+        add edi, 0x%x
+        add esi, 0x%x
         mov ecx, 0x%x
-        mov edi, 0x%x
-        mov esi, 0x%x
 
         rep movsb
 
         pop ecx
         pop esi
         pop edi
-        ''' % (size, dst, src)
+        ''' % (dst, src, size)
 
 class x86_64(x86):
     _cs = CS_ARCH_X86, CS_MODE_64
@@ -68,16 +79,17 @@ class x86_64(x86):
         push rdi
         push rsi
         push rcx
+
+        lea rdi, [rip - _PKST_ + %d]
+        lea rsi, [rip - _PKST_ + %d]
         mov rcx, 0x%x
-        mov rdi, 0x%x
-        mov rsi, 0x%x
 
         rep movsb
 
         pop rcx
         pop rsi
         pop rdi
-        ''' % (size, dst, src)
+        ''' % (dst, src, size)
 
 class arm(Arch):
     _cs = CS_ARCH_ARM, CS_MODE_ARM

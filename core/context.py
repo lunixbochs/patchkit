@@ -9,6 +9,9 @@ from util import stdlib
 from util.elffile import EM
 from util.patch.dis import irdis
 
+def pfcol(s):
+    return '[\033[1m\033[32m%s\033[0m] ' % s
+
 class Context(object):
     def __init__(self, binary, verbose=False):
         self.binary = binary
@@ -40,7 +43,7 @@ class Context(object):
 
     @entry.setter
     def entry(self, val):
-        self.info('[MOVE ENTRY POINT] -> 0x%x' % val)
+        self.info(pfcol('MOVE ENTRY POINT') + '-> 0x%x' % val)
         self.elf.entry = val
 
     def funcs(self, marked=False):
@@ -86,11 +89,11 @@ class Context(object):
 
     # TODO: show warn/error at the end, and colorize
     def warn(self, *args, **kwargs):
-        kwargs['prefix'] = '\033[33m[WARN]\033[39m'
+        kwargs['prefix'] = '\033[1m\033[33m[WARN]\033[0m'
         self.info(*args, **kwargs)
 
     def error(self, *args, **kwargs):
-        kwargs['prefix'] = '\033[31m[ERR]\033[39m'
+        kwargs['prefix'] = '\033[1m\033[31m[ERR]\033[0m'
         self.info(*args, **kwargs)
 
     def debug(self, *args, **kwargs):
@@ -155,22 +158,22 @@ class Context(object):
                 idx = segment.data.index(data)
                 if idx >= 0:
                     addr = segment.addr + idx
-                    self.debug('[SEARCH] "%s" found at 0x%x' % (tmp, addr))
+                    self.debug(pfcol('SEARCH') + '"%s" found at 0x%x' % (tmp, addr))
                     return addr
             except ValueError:
                 pass
-        self.error('[SEARCH] "%s" not found.' % tmp)
+        self.error(pfcol('SEARCH') + '"%s" not found.' % tmp)
 
-    def hook(self, src, dst, first=False):
+    def hook(self, src, dst, first=False, noentry=False):
         # hooking the entry point is a special, more efficient case
-        if src == self.entry:
+        if src == self.entry and not noentry:
             if first:
                 self.binary.entry_hooks.insert(0, dst)
             else:
                 self.binary.entry_hooks.append(dst)
-            self.debug('[HOOK] ENTRY -> 0x%x' % dst)
+            self.debug(pfcol('HOOK') + 'ENTRY -> 0x%x' % dst)
             return
-        self.debug('[HOOK] @0x%x -> 0x%x' % (src, dst))
+        self.debug(pfcol('HOOK') + '@0x%x -> 0x%x' % (src, dst))
         self.make_writable(src)
 
         alloc = self.binary.next_alloc()
@@ -207,16 +210,20 @@ class Context(object):
         jmpevict = str(self.elf.read(jmpoff, len(emptyjmp)))
 
         stage0 = evicted + jmpevict
-        stage1_addr = self.inject(raw=stage0, internal=True)
-        stage2_addr = self.inject(raw=stage0, internal=True)
+        # TODO: self.alloc()?
+        stage1_addr = self.binary.alloc(len(stage0), target='patch')
+        stage2_addr = self.binary.alloc(len(stage0), target='patch')
 
+        # memcpy needs to be pc-relative
+        base = self.binary.next_alloc()
         hook1 = self.inject(asm=';'.join((
             self.arch.call(dst),
-            self.arch.memcpy(src, stage2_addr, len(stage0)),
+            self.arch.memcpy(src - base, stage2_addr - base, len(stage0)),
             self.arch.jmp(src),
         )), internal=True)
+        base = self.binary.next_alloc()
         hook2 = self.inject(asm=';'.join((
-            self.arch.memcpy(src, stage1_addr, len(stage0)),
+            self.arch.memcpy(src - base, stage1_addr - base, len(stage0)),
             self.arch.jmp(jmpoff),
         )), internal=True)
 
@@ -224,20 +231,13 @@ class Context(object):
         stage1 = self.asm(';'.join(
             (self.arch.jmp(hook1),) + (self.arch.nop(),) * (len(evicted) - len(emptyjmp)),
         ), addr=src) + jmpevict
-        self.elf.write(stage1_addr, stage1)
+        self.patch(stage1_addr, raw=stage1, is_asm=True, internal=True, desc='hook stage 1')
         stage2 = evicted + self.asm(self.arch.jmp(hook2), addr=jmpoff)
-        self.elf.write(stage2_addr, stage2)
-
-        '''
-        print 'stage 1', binascii.hexlify(stage1)
-        print self.pdis(self.arch.dis(stage1, src))
-        print 'stage 2', binascii.hexlify(stage2)
-        print self.pdis(self.arch.dis(stage2, src))
-        '''
+        self.patch(stage2_addr, raw=stage2, is_asm=True, internal=True, desc='hook stage 2')
 
         # TODO: act more like mobile substrate wrt orig calling?
         # that is, make calling orig optional
-        self.patch(src, raw=stage1)
+        self.patch(src, raw=stage1, is_asm=True, internal=True, desc='hook entry point')
 
     def _lint(self, addr, raw, typ, is_asm=False):
         if typ == 'asm' or is_asm:
@@ -273,6 +273,10 @@ class Context(object):
         mark_func = kwargs.get('mark_func', False)
         return_size = kwargs.get('size', False)
         target = kwargs.get('target', 'patch')
+        desc = kwargs.get('desc', '')
+        if desc:
+            desc = ' | "%s"' % desc
+
         addr = self.binary.next_alloc(target)
         c = kwargs.get('c')
         if c:
@@ -289,7 +293,7 @@ class Context(object):
             if raw[-len(ret):] != ret and not internal:
                 self.warn('Injected asm does not return!')
 
-        self.info('[INJECT] @0x%x-0x%x' % (addr, addr + len(raw)))
+        self.info(pfcol('INJECT') + '@0x%x-0x%x%s' % (addr, addr + len(raw), desc))
         if not kwargs.get('silent'):
             if typ == 'asm' or is_asm:
                 self.debug(dis=self.arch.dis(raw, addr=addr))
@@ -307,22 +311,30 @@ class Context(object):
 
     def patch(self, addr, **kwargs):
         raw, typ = self._compile(addr, **kwargs)
+        desc = kwargs.get('desc', '')
+        if desc:
+            desc = ' | "%s"' % desc
 
-        self.info('[PATCH] @0x%x-0x%x' % (addr, addr + len(raw)))
+        self.info(pfcol('PATCH') + '@0x%x-0x%x%s' % (addr, addr + len(raw), desc))
         if len(raw) == 0:
             self.warn('Empty patch.')
             return
 
         if typ == 'asm' or kwargs.get('is_asm'):
             size = len(''.join([str(i.bytes) for i in self.dis(addr, len(raw))]))
-            if size != len(raw):
+            if size != len(raw) and not kwargs.get('internal'):
                 self.warn('Assembly patch is not aligned with underlying instructions.')
 
         self._lint(addr, raw, typ, is_asm=kwargs.get('is_asm'))
         if not kwargs.get('silent'):
             if typ == 'asm' or kwargs.get('is_asm'):
-                for line in self.pdis(self.dis(addr, len(raw))).split('\n'):
-                    self.debug('- %s' % line)
+                # collapse nulls
+                old = self.elf.read(addr, len(raw))
+                if old == '\0' * len(raw):
+                    self.debug('- %s' % ('00' * len(raw)))
+                else:
+                    for line in self.pdis(self.dis(addr, len(raw))).split('\n'):
+                        self.debug('- %s' % line)
                 for line in self.pdis(self.arch.dis(raw, addr=addr)).split('\n'):
                     self.debug('+ %s' % line)
             else:
