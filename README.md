@@ -78,7 +78,6 @@ These are somewhat CGC and x86-specific right now, but will be ported for genera
 
 Dependencies
 ----
-- Python coding library: `pip install coding`
 - Run `./deps.sh` to automatically install these.
   - Capstone Engine - https://github.com/aquynh/capstone.git
   - Keystone Engine - https://github.com/keystone-engine/keystone.git
