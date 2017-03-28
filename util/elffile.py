@@ -610,9 +610,8 @@ class ElfFile(StructBase):
             p.memsz = max(p.memsz, p.filesz)
             if p.align:
                 # we don't want to make super huge bins, assume everyone is <=8kb pages
-                # TODO: this breaks something?
-                # if p.align > 0x2000:
-                #      p.align = 0x2000
+                if p.align > 0x2000:
+                     p.align = 0x2000
 
                 # offset % align == vaddr % align
                 a, b = x % p.align, p.vaddr % p.align
