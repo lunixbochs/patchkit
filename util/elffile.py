@@ -152,23 +152,6 @@ class StructBase(object):
         """
         raise NotImplementedError
 
-    __hash__ = None
-
-    def __eq__(self, other):
-        raise NotImplementedError
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def close_enough(self, other):
-        """
-        This is a comparison similar to __eq__ except that here the
-        goal is to determine whether two objects are "close enough"
-        despite perhaps having been produced at different times in
-        different locations in the file system.
-        """
-        return self == other
-
 
 EI_NIDENT = 16
 """
@@ -259,31 +242,6 @@ class ElfFileIdent(StructBase):
                         ElfClass.bycode[self.elfClass] if self.elfClass in ElfClass.bycode else self.elfClass,
                         ElfData.bycode[self.elfData] if self.elfData in ElfData.bycode else self.elfData,
                         self.fileVersion, self.osabi, self.abiversion))
-
-    def __eq__(self, other):
-        return (isinstance(other, self.__class__)
-                and self.coder == other.coder
-                and self.magic == other.magic
-                and self.elfClass == other.elfClass
-                and self.elfData == other.elfData
-                and self.fileVersion == other.fileVersion
-                and self.osabi == other.osabi
-                and self.abiversion == other.abiversion)
-
-    close_enough = __eq__
-
-    def _list_encode(self):
-        return (self.__class__.__name__,
-                hex(id(self)),
-                {
-                    'coder': self.coder,
-                    'magic': self.magic,
-                    'elfClass': ElfClass.bycode[self.elfClass].name,
-                    'elfData': ElfData.bycode[self.elfData].name,
-                    'fileVersion': self.fileVersion,
-                    'osabi': self.osabi,
-                    'abiversion': self.abiversion,
-                })
 
 class ElfClass(Coding):
     """
@@ -762,100 +720,9 @@ class ElfFile(StructBase):
         except Exception:
             pass
 
-    def __eq__(self, other):
-        """
-        .. todo:: it would not be difficult to break up the string
-            table, sort, and compare the results.  But then we'll also
-            need a way to stub out the embedded path names.
-        """
-
-        if not isinstance(other, self.__class__):
-            return False
-
-        if (self.ident != other.ident
-            or self.header != other.header):
-            return False
-
-        # FIXME: need to handle order independence
-        for this, that in zip(self.sections, other.sections):
-            if this != that:
-                import sys
-                print('{0} differs from {1}'.format(this, that), file=sys.stderr)
-                return False
-
-        return True
-
-    def close_enough(self, other):
-        """
-        .. todo:: it would not be difficult to break up the string
-            table, sort, and compare the results.  But then we'll also
-            need a way to stub out the embedded path names.
-        """
-
-        if not isinstance(other, self.__class__):
-            return False
-
-        if ((not self.ident.close_enough(other.ident))
-            or (not self.header.close_enough(other.header))):
-            return False
-
-        # FIXME: need to handle order independence
-        for this, that in zip(self.sections, other.sections):
-            if (this.name in [
-                '.ARM.attributes',
-                '.ARM.exidx',
-                '.ARM.extab',
-                '.comment',
-                '.debug_aranges',
-                '.debug_frame',
-                '.debug_info',    # x86_64 linux dyn
-                '.debug_line',    # arm debug lines contain file names
-                '.debug_loc',
-                '.debug_pubnames',
-                '.debug_ranges',
-                '.debug_str',           # x86_64 linux rela
-                '.gnu_debuglink',       # arm: maybe time stamps?
-                '.note.GNU-stack',
-                '.note.gnu.build-id',   # x86_64 linux dyn
-                '.rel.ARM.exidx',
-                '.rel.debug_aranges',
-                '.rel.debug_frame',
-                '.rel.debug_info',      # x86_64 linux rela
-                '.rel.debug_line',
-                '.rel.debug_pubnames',
-                '.rel.text',
-                '.rodata',
-                '.rodata.str1.4',
-                '.shstrtab',
-                '.strtab',
-                '.symtab',
-                ]
-                or this.type == SHT.byname['SHT_NOBITS'].code # Not sure what this is or why it differs
-                ):
-                continue
-
-            if not this.close_enough(that):
-                import sys
-                print('section({0}) not close enough to section({1})'.format(this.name, that.name), file=sys.stdout)
-                return False
-
-        return True
-
-
     def __repr__(self):
         return ('<{0}@{1}: name=\'{2}\', ident={3}, header={4}>'
                 .format(self.__class__.__name__, hex(id(self)), self.name, self.ident, self.header))
-
-    def _list_encode(self):
-        return (self.__class__.__name__,
-                hex(id(self)),
-                {
-                    'name': self.name,
-                    'ident': self.ident._list_encode(),
-                    'header': self.header._list_encode(),
-                    'sections': [sh._list_encode() for sh in self.sections],
-                    'progs': [ph._list_encode() for ph in self.progs],
-                })
 
     # helper methods below
     def save(self, path):
@@ -1031,37 +898,6 @@ class ElfFileHeader(StructBase):
 
         return self
 
-    def __eq__(self, other):
-        return (isinstance(other, self.__class__)
-                and self.type == other.type
-                and self.machine == other.machine
-                and self.version == other.version
-                and self.entry == other.entry
-                and self.phoff == other.phoff
-                # and self.shoff == other.shoff
-                and self.flags == other.flags
-                and self.ehsize == other.ehsize
-                and self.phentsize == other.phentsize
-                and self.phnum == other.phnum
-                and self.shentsize == other.shentsize
-                and self.shnum == other.shnum
-                and self.shstrndx == other.shstrndx)
-
-    def close_enough(self, other):
-        return (isinstance(other, self.__class__)
-                and self.type == other.type
-                and self.machine == other.machine
-                and self.version == other.version
-                and self.entry == other.entry
-                and self.phoff == other.phoff
-                and self.flags == other.flags
-                and self.ehsize == other.ehsize
-                and self.phentsize == other.phentsize
-                and self.phnum == other.phnum
-                and self.shentsize == other.shentsize
-                and self.shnum == other.shnum
-                and self.shstrndx == other.shstrndx)
-
     def __repr__(self):
         return ('<{0}@{1}: type={2}, machine={3}, version={4},'
                 ' entry={5}, phoff={6}, shoff={7}, flags={8},'
@@ -1071,24 +907,6 @@ class ElfFileHeader(StructBase):
                         self.version, hex(self.entry), self.phoff, self.shoff,
                         hex(self.flags), self.ehsize, self.phnum, self.shentsize,
                         self.shnum, self.shstrndx))
-
-    def _list_encode(self):
-        return (self.__class__.__name__,
-                hex(id(self)),
-                {
-                    'type': ET.bycode[self.type].name,
-                    'machine': EM.bycode[self.machine].name,
-                    'version': self.version,
-                    'entry': hex(self.entry),
-                    'phoff': self.phoff,
-                    'shoff': self.shoff,
-                    'flags': hex(self.flags),
-                    'ehsize': self.ehsize,
-                    'phnum': self.phnum,
-                    'shentsize': self.shentsize,
-                    'shnum': self.shnum,
-                    'shstrndx': self.shstrndx,
-                })
 
 
 class ElfFileHeader32b(ElfFileHeader):
@@ -1409,31 +1227,6 @@ class ElfSectionHeader(StructBase):
 
         return self
 
-    def __eq__(self, other):
-        return (isinstance(other, self.__class__)
-                and self.nameoffset == other.nameoffset
-                and self.type == other.type
-                and self.flags == other.flags
-                and self.addr == other.addr
-                and self.offset == other.offset
-                and self.size == other.size
-                and self.link == other.link
-                and self.info == other.info
-                and self.addralign == other.addralign
-                and self.entsize == other.entsize)
-
-    def close_enough(self, other):
-        return (isinstance(other, self.__class__)
-                and self.nameoffset == other.nameoffset
-                and self.type == other.type
-                and self.flags == other.flags
-                and self.addr == other.addr
-                and self.size == other.size
-                and self.link == other.link
-                and self.info == other.info
-                and self.addralign == other.addralign
-                and self.entsize == other.entsize)
-
     def __repr__(self):
         # FIXME: I wish I could include the first few bytes of the content as well.
         return ('<{0}@{1}: name=\'{2}\', type={3},'
@@ -1443,21 +1236,6 @@ class ElfSectionHeader(StructBase):
                         SHT.bycode[self.type] if self.type in SHT.bycode else hex(self.type),
                         hex(self.flags), hex(self.addr), self.offset, self.size,
                         self.link, self.info, self.addralign, self.entsize))
-
-    def _list_encode(self):
-        return (self.__class__.__name__,
-                hex(id(self)),
-                {
-                    'name': self.name,
-                    'type': SHT.bycode[self.type].name if self.type in SHT.bycode else self.type,
-                    'flags': hex(self.flags),
-                    'offset': self.offset,
-                    'size': self.size,
-                    'link': self.link,
-                    'info': self.info,
-                    'addralign': self.addralign,
-                    'entsize': self.entsize,
-                })
 
     def __contains__(self, vaddr):
         return vaddr >= self.addr and vaddr < self.addr + self.size
@@ -1686,17 +1464,6 @@ class ElfProgramHeader(StructBase):
     If True, don't try to pack data.
     """
 
-    def __eq__(self, other):
-        return (isinstance(other, self.__class__)
-                and self.type == other.type
-                and self.offset == other.offset
-                and self.vaddr == other.vaddr
-                and self.paddr == other.paddr
-                and self.filesz == other.filesz
-                and self.memsz == other.memsz
-                and self.flags == other.flags
-                and self.align == other.align)
-
     def __repr__(self):
         return ('<{0}@{1}: type={2},'
                 ' offset={3}, vaddr={4}, paddr={5},'
@@ -1705,20 +1472,6 @@ class ElfProgramHeader(StructBase):
                         PT.bycode[self.type].name if self.type in PT.bycode else self.type,
                         self.offset, hex(self.vaddr), hex(self.paddr),
                         self.filesz, self.memsz, hex(self.flags), self.align))
-
-    def _list_encode(self):
-        return (self.__class__.__name__,
-                hex(id(self)),
-                {
-                    'type': PT.bycode[self.type].name if self.type in PT.bycode else self.type,
-                    'offset': self.offset,
-                    'vaddr': hex(self.vaddr),
-                    'paddr': hex(self.paddr),
-                    'filesz': self.filesz,
-                    'memsz': self.memsz,
-                    'flags': hex(self.flags),
-                    'align': self.align,
-                })
 
     @property
     def vsize(self):
