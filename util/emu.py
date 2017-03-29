@@ -9,8 +9,6 @@ from unicorn.x86_const import *
 from capstone import *
 from capstone.x86_const import *
 
-from core.elfutil import is_load
-
 def align(addr, size):
     start = addr
     end = addr + size
@@ -190,7 +188,7 @@ class Emu:
         # map memory
         todo = []
         for prog in self.binary.elf.progs:
-            if is_load(prog) and prog.memsz:
+            if prog.isload and prog.memsz:
                 addr, size = align(prog.vaddr, prog.memsz)
                 uc.mem_map(addr, size)
                 todo.append(prog)

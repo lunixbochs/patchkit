@@ -1,12 +1,11 @@
 import struct
 from capstone.x86_const import *
 
-from core.elfutil import is_load
 from util.patch.syscall import find_syscall_funcs
 
 def patch(pt):
     for prog in pt.elf.progs:
-        if is_load(prog) and prog.offset == 0:
+        if prog.isload and prog.offset == 0:
             magic_addr = prog.vaddr
 
     receive = pt.resolve('receive')

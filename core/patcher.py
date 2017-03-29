@@ -1,4 +1,3 @@
-import elfutil
 import glob
 import inspect
 import os
@@ -68,7 +67,7 @@ class Patcher:
                                 traceback.print_exc()
                                 print 'Memory maps:'
                                 for prog in self.bin.elf.progs:
-                                    if elfutil.is_load(prog):
+                                    if prog.isload:
                                         print '0x%x-0x%x' % (prog.vaddr, prog.vaddr + prog.vsize)
                                 sys.exit(1)
                 print

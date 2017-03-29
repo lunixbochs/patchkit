@@ -1,5 +1,4 @@
 import contextlib
-import elfutil
 import os
 
 from util import autolink
@@ -27,7 +26,7 @@ class Binary:
         end = 0
         # TODO: doesn't handle new mem being mapped or unmapped
         for ph in reversed(self.elf.progs):
-            if elfutil.is_load(ph):
+            if ph.isload:
                 start = min(start, ph.vaddr)
                 end = max(ph.vaddr + ph.vsize, end)
 

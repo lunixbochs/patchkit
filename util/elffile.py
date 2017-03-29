@@ -1432,6 +1432,10 @@ class ElfProgramHeader(StructBase):
     def vend(self):
         return self.vaddr + self.memsz
 
+    @property
+    def isload(self):
+        return PT[self.type].name == 'PT_LOAD'
+
     def __contains__(self, vaddr):
         return vaddr >= self.vaddr and vaddr < self.vaddr + self.vsize
 

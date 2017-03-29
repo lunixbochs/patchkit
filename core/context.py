@@ -3,7 +3,6 @@ import binascii
 
 import arch
 import compiler
-import elfutil
 from func import Func
 from util import stdlib
 from util.elffile import EM
@@ -143,7 +142,7 @@ class Context(object):
 
     def make_writable(self, addr):
         for prog in self.elf.progs:
-            if elfutil.is_load(prog):
+            if prog.isload:
                 if addr in prog and prog.flags & 2 == 0:
                     self.debug('[!] Segment made writable: 0x%x-0x%x' % (prog.vaddr, prog.vaddr + prog.memsz))
                     prog.flags |= 2
