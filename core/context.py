@@ -16,12 +16,12 @@ class Context(object):
     def __init__(self, binary, verbose=False):
         self.binary = binary
         self.verbose = verbose
-        machine = EM.bycode[binary.elf.header.machine]
-        if machine == EM.byname['EM_386']:
+        machine = EM[binary.elf.header.machine]
+        if machine == EM['EM_386']:
             self.arch = arch.x86()
-        elif machine == EM.byname['EM_X86_64']:
+        elif machine == EM['EM_X86_64']:
             self.arch = arch.x86_64()
-        elif machine == EM.byname['EM_ARM']:
+        elif machine == EM['EM_ARM']:
             self.arch = arch.arm()
         else:
             raise NotImplementedError("Unknown machine: %s" % machine)

@@ -36,7 +36,7 @@ class Binary:
             align = 0x1000
             ph = self.elf.programHeaderClass()
             ph.data = bytearray()
-            ph.type = PT.byname['PT_LOAD'].code
+            ph.type = PT['PT_LOAD'].code
             ph.vaddr = (addr + align - 1) & ~(align - 1)
             ph.paddr = ph.vaddr
             # TODO: default is RWX?!
