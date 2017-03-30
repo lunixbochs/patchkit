@@ -1079,7 +1079,7 @@ class ElfFile(StructBase):
                         offset + self.header.shoff + (i * self.header.shentsize))
                 if sh.addr == 0:
                     base = offset + sh.offset
-                    sh.data = bytearray(block[base:base + sh._size])
+                    sh.data = bytearray(block[base:base + sh.size])
                 else:
                     sh.data = bytearray()
                 if i == 0:
@@ -1355,7 +1355,6 @@ class ElfFile(StructBase):
 
         ph.data += dynent
         ph.filesz = ph.memsz = len(ph.data)
-        # TODO: this doesn't work because the section name isn't parsing correctly
         for s in self.sections:
             if s.name == '.dynamic':
                 s.addr = pdyn.vaddr
