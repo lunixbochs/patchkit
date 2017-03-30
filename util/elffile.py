@@ -561,7 +561,6 @@ DF('DF_BIND_NOW', 0x8)
 
 ### END ENUMS ###
 
-# TODO: just make a class to wrap SYMHASH sections?
 class ElfHash:
     @staticmethod
     def hash(name):
@@ -1244,7 +1243,6 @@ class ElfFile(StructBase):
         for ph in self.progs:
             if ph.flags & PF['PF_W'].code:
                 # HACK: PT_DYNAMIC data is moved to the end of the first segment
-                # TODO: put at end of DATA instead of end of TEXT?
                 # NOTE: the old PT_DYNAMIC is ignored
                 break
         else:
