@@ -546,7 +546,12 @@ DT('DT_LOOS', 0x60000000, 'Defines a range of dynamic table tags that are reserv
 DT('DT_HIOS', 0x6ffff000, 'Defines a range of dynamic table tags that are reserved for environment-specific use.')
 DT('DT_LOPROC', 0x70000000, 'Defines a range of dynamic table tags that are reserved for processor-specific use.')
 DT('DT_HIPROC', 0x7fffffff, 'Defines a range of dynamic table tags that are reserved for processor-specific use.')
+
+# GNU extensions
 DT('DT_GNU_HASH', 0x6ffffef5)
+DT('DT_VERNEED', 0x6ffffffe)
+DT('DT_VERNEEDNUM', 0x6fffffff)
+DT('DT_VERSYM', 0x6ffffff0)
 
 DF = Coding('DF')
 DF('DF_ORIGIN', 0x1)
