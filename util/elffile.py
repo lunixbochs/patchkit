@@ -528,6 +528,9 @@ DT('DT_INIT_ARRAY', 25, 'Pointer to an array of pointers to initialization funct
 DT('DT_FINI_ARRAY', 26, 'Pointer to an array of pointers to termination functions.')
 DT('DT_INIT_ARRAYSZ', 27, 'Size, in bytes, of the array of initialization functions.')
 DT('DT_FINI_ARRAYSZ', 28, 'Size, in bytes, of the array of termination functions.')
+DT('DT_FLAGS', 30)
+DT('DT_PREINIT_ARRAY', 32)
+DT('DT_PREINIT_ARRAYSZ', 33)
 DT('DT_LOOS', 0x60000000, 'Defines a range of dynamic table tags that are reserved for environment-specific use.')
 DT('DT_HIOS', 0x6ffff000, 'Defines a range of dynamic table tags that are reserved for environment-specific use.')
 DT('DT_LOPROC', 0x70000000, 'Defines a range of dynamic table tags that are reserved for processor-specific use.')
@@ -555,23 +558,23 @@ class ElfHash:
                 h &= ~g
         return h & 0xffffffff
 
-    @staticmethod
-    def count(data, addr):
+    @classmethod
+    def count(cls, data, addr):
         en = addr.format[0]
         nbucket, nchain = struct.unpack(en + 'II', data[:8])
         buckets = struct.unpack(en + '%dI' % nbucket, data[:nbucket * 4])
         return min(buckets), nchain
 
-    @staticmethod
-    def write(base, names, addr):
+    @classmethod
+    def build(cls, base, names, addr):
         en = addr.format[0]
-        nbucket = min(1024, len(names) / 4)
+        nbucket = max(min(1024, len(names) / 4), 1)
         nchain = len(names) + base
         buckets = [0] * nbucket
         chain = [0] * nchain
         for i, name in enumerate(names):
             i += base
-            h = self.hash(name)
+            h = cls.hash(name) % len(buckets)
             n = buckets[h]
             if n == 0:
                 buckets[h] = i
@@ -580,7 +583,7 @@ class ElfHash:
                     n = chain[n]
                 chain[n] = i
         fmt = en + '%dIII' % (nbucket + nchain)
-        return struct.pack(fmt, nbucket, nchain, buckets + chain)
+        return struct.pack(fmt, *([nbucket, nchain] + buckets + chain))
 
 class ElfGnuHash:
     @staticmethod
@@ -611,7 +614,7 @@ class ElfGnuHash:
         return base, 0
 
     @staticmethod
-    def write(base, names, addr):
+    def build(base, names, addr):
         en = addr.format[0]
         awords = addr.format[-1]
         word = struct.Struct(en + 'I')
@@ -677,11 +680,9 @@ class StructBase(object):
     subclasses.
     """
 
-    class _Size(object):
-        def __get__(self, obj, t):
-            return t.coder.size
-
-    size = _Size()
+    @property
+    def _size(self):
+        return self.coder.size
     """
     Exact size in bytes of a block of memory into which is suitable
     for packing this instance.
@@ -702,7 +703,7 @@ class StructBase(object):
         raise NotImplementedError
 
     def pack(self):
-        x = bytearray(self.size)
+        x = bytearray(self._size)
         self.pack_into(x)
         return x
 
@@ -814,6 +815,9 @@ class ElfFile(StructBase):
     dyn_unk = None
     """A :py:class:`list` of unknown PT_DYNAMIC entries to pass through."""
 
+    dyndata = bytearray(b'')
+    """The PT_DYNAMIC data blob, generated immediately before save."""
+
     # the following attrs will be extracted from the dyn list
     needed = None
     """A :py:class:`list` of DT_NEEDED entries."""
@@ -836,6 +840,9 @@ class ElfFile(StructBase):
 
     symtab = None
     """A :py:class:`list` of DT_SYMTAB entries."""
+
+    soname = None
+    """A :py:class:`str` of the current library name."""
 
     # NOTE: If both DT_RPATH and DT_RUNPATH entries appear in a single object's dynamic array, the dynamic linker processes only the DT_RUNPATH entry.
     # NOTE: it is stored colon-separated, but split into a list to allow easy editing
@@ -904,7 +911,6 @@ class ElfFile(StructBase):
         self.header = None
         self.sections = []
         self.progs = []
-        self.dyn = []
 
     def unpack_from(self, block, offset=0):
         """Unpack an entire file."""
@@ -927,6 +933,7 @@ class ElfFile(StructBase):
         self.rel = []
         self.rpath = []
         self.symtab = []
+        self.soname = None
         self.dyn_flags = 0
         for ph in self.progs:
             if ph.type == 'PT_DYNAMIC':
@@ -934,7 +941,7 @@ class ElfFile(StructBase):
                 # any DT entries not in `known` will be preserved verbatim
                 known = [
                     'DT_STRTAB', 'DT_STRSZ',
-                    'DT_NEEDED',
+                    'DT_NEEDED', 'DT_SONAME',
                     'DT_SYMTAB', 'DT_SYMENT', 'DT_HASH', 'DT_GNU_HASH',
                     'DT_INIT', 'DT_FINI', 'DT_INIT_ARRAY', 'DT_INIT_ARRAYSZ',
                     'DT_FINI_ARRAY', 'DT_FINI_ARRAYSZ', 'DT_PRELINK_ARRAY', 'DT_PRELINK_ARRAYSZ',
@@ -947,7 +954,7 @@ class ElfFile(StructBase):
                 off = 0
                 while off < len(ph.data):
                     ent = self.dynClass().unpack_from(ph.data, off)
-                    off += ent.size
+                    off += ent._size
                     if ent.tag == 'DT_NULL':
                         break
 
@@ -1046,7 +1053,7 @@ class ElfFile(StructBase):
     def _unpack_file_header(self, block, offset):
         if not self.header:
             self.header = self.headerClass()
-        self.header.unpack_from(block, offset + self.ident.size)
+        self.header.unpack_from(block, offset + self.ident._size)
 
     def _unpack_section_headers(self, block, offset):
         if self.header.shoff != 0:
@@ -1056,7 +1063,7 @@ class ElfFile(StructBase):
                         offset + self.header.shoff + (i * self.header.shentsize))
                 if sh.addr == 0:
                     base = offset + sh.offset
-                    sh.data = bytearray(block[base:base + sh.size])
+                    sh.data = bytearray(block[base:base + sh._size])
                 else:
                     sh.data = bytearray()
                 if i == 0:
@@ -1089,7 +1096,6 @@ class ElfFile(StructBase):
         """
         Pack the entire file.  Rewrite offsets as necessary.
         """
-
         total, pdoff, sdoff, shoff, phoff = self._offsets(offset)
 
         self._pack_program_data(block, pdoff)
@@ -1109,22 +1115,20 @@ class ElfFile(StructBase):
         * section headers
         """
 
-        self._regen_section_name_table()
-
         x = offset
         x += self.header.ehsize
 
         # find the PHDR
         phdr = None
         for ph in self.progs:
-            if PT[ph.type] == PT['PT_PHDR']:
+            if ph.type == 'PT_PHDR':
                 phdr = ph
                 break
 
         pdoff = x
 
         for p in self.progs:
-            if p.offset == 0 and PT[p.type] == PT['PT_LOAD']:
+            if p.offset == 0 and p.type == 'PT_LOAD':
                 # HACK: put PHDR at the end of the first segment
                 phoff = p.offset + len(p.data)
 
@@ -1142,7 +1146,7 @@ class ElfFile(StructBase):
             x += phsize
 
         for p in self.progs:
-            if p.virtual or not PT[p.type] == PT['PT_LOAD']:
+            if p.virtual or not p.type == 'PT_LOAD':
                 continue
             p.filesz = len(p.data)
             # FIXME: repatching a file will spew PHDRs at the end of TEXT
@@ -1213,6 +1217,135 @@ class ElfFile(StructBase):
         for s in self.sections:
             s.nameoffset = data.find(s.name + b'\0')
 
+    def _regen_dyn(self):
+        for pdyn in self.progs:
+            if pdyn.type == 'PT_DYNAMIC':
+                break
+        else:
+            # no PT_DYNAMIC section
+            return
+
+        for ph in self.progs:
+            if ph.flags & PF['PF_W'].code:
+                # HACK: PT_DYNAMIC data is moved to the end of the first segment
+                # TODO: put at end of DATA instead of end of TEXT?
+                # NOTE: the old PT_DYNAMIC is ignored
+                break
+        else:
+            # TODO: we should maybe just add a dedicated segment for DYNAMIC
+            print('WARNING: Could not inject PT_DYNAMIC. The file will likely fail to link.')
+            return
+
+        # `dyndata` is all data required by the PT_DYNAMIC section
+        # such as strtab, symtab, etc
+        # `dynent` is the actual PT_DYNAMIC table
+        dynoff = ph.vaddr + len(ph.data)
+        dyndata = bytearray()
+        pos = lambda: dynoff + len(dyndata)
+        addr = lambda a: self.addrPack.pack(a)
+        dt = []
+
+        strings = [sym.name for sym in self.symtab] + self.needed
+        if self.soname:
+            strings.append(self.soname)
+        if self.rpath:
+            rpath = ':'.join(self.rpath)
+            strings.append(rpath)
+
+        strd = {}
+        spos = 0
+        for name in strings:
+            strd[name] = spos
+            spos += len(name) + 1
+
+        if self.needed:
+            for name in self.needed:
+                dt.append(('DT_NEEDED', strd[name]))
+
+        if self.soname:
+            dt.append(('DT_SONAME', strd[self.soname]))
+
+        if self.init:
+            initaddr = b''.join(addr(a) for a in self.init)
+            dt.append(('DT_INIT_ARRAY', pos()))
+            dt.append(('DT_INIT_ARRAYSZ', len(initaddr)))
+            dyndata += initaddr
+
+        if self.preinit:
+            preinitaddr = b''.join(addr(a) for a in self.init)
+            dt.append(('DT_PREINIT_ARRAY', pos()))
+            dt.append(('DT_PREINIT_ARRAYSZ', len(preinitaddr)))
+            dyndata += preinitaddr
+
+        if self.fini:
+            finiaddr = b''.join(addr(a) for a in self.init)
+            dt.append(('DT_FINI_ARRAY', pos()))
+            dt.append(('DT_FINI_ARRAYSZ', len(finiaddr)))
+            dyndata += finiaddr
+
+        # write strtab
+        strtab = bytearray(b'\0'.join(strings) + b'\0')
+        dt.append(('DT_STRTAB', pos()))
+        dt.append(('DT_STRSZ', len(strtab)))
+        dyndata += strtab
+
+        # write symtab
+        names = []
+        dnames = []
+        symtab = list(sorted(self.symtab, key=lambda x: x.dyn))
+        symbase = 0
+        syment = self.symClass.coder.size
+        symdata = bytearray(syment * len(symtab))
+        for i, sym in enumerate(symtab):
+            if sym.dyn and not symbase:
+                symbase = i
+                dnames.append(sym.name)
+            names.append(sym.name)
+            sym.name_idx = strd[sym.name]
+            sym.pack_into(symdata, i * syment)
+
+        dt.append(('DT_SYMTAB', pos()))
+        dt.append(('DT_SYMENT', syment))
+        dyndata += symdata
+
+        dt.append(('DT_HASH', pos()))
+        hashtab = ElfHash.build(symbase, dnames, self.addrPack)
+        dyndata += hashtab
+
+        if self.rpath:
+            dt.append(('DT_RUNPATH', strd[rpath]))
+
+        dt.append(('DT_FLAGS', self.dyn_flags))
+
+        # TODO: write rels
+        dt.append(('DT_RELA', 0))
+        dt.append(('DT_RELASZ', 0))
+        dt.append(('DT_RELAENT', self.relaClass.coder.size))
+
+        ph.data += dyndata
+
+        dyn = [self.dynClass(DT[a], b) for a, b in dt]
+        dyn.extend(self.dyn_unk)
+        dyn.append(self.dynClass(DT['DT_NULL'], 0))
+
+        dynent = bytearray(len(dyn) * dyn[-1]._size)
+        for i, ent in enumerate(dyn):
+            ent.pack_into(dynent, i * ent._size)
+
+        pdyn.vaddr = ph.vaddr + len(ph.data)
+        pdyn.filesz = pdyn.memsz = len(dynent)
+        # we don't actually store any data here, it all piggybacks on another segment
+        pdyn.virtual = True
+
+        ph.data += dynent
+        ph.filesz = ph.memsz = len(ph.data)
+        # TODO: this doesn't work because the section name isn't parsing correctly
+        for s in self.sections:
+            if s.name == '.dynamic':
+                s.addr = pdyn.vaddr
+                s.size = pdyn.filesz
+                break
+
     def _pack_file_header(self, block, offset, shoff, phoff):
         """Determine and set current offsets then pack the file header."""
         self.ident.pack_into(block, offset)
@@ -1221,7 +1354,7 @@ class ElfFile(StructBase):
         self.header.shnum = len(self.sections)
         self.header.shoff = shoff if len(self.sections) > 0 else 0
         self.header.phoff = phoff if len(self.progs) > 0 else 0
-        self.header.pack_into(block, offset + self.ident.size)
+        self.header.pack_into(block, offset + self.ident._size)
 
     def _pack_program_headers(self, block, offset=0):
         """Pack the program headers."""
@@ -1234,7 +1367,7 @@ class ElfFile(StructBase):
             if prog.virtual:
                 continue
 
-            if PT[prog.type] == PT['PT_LOAD'] and prog.offset == 0:
+            if prog.type == 'PT_LOAD' and prog.offset == 0:
                 block[offset:len(prog.data) - offset] = prog.data[offset:]
             else:
                 block[prog.offset:prog.offset + len(prog.data)] = prog.data
@@ -1247,7 +1380,7 @@ class ElfFile(StructBase):
                     break
 
             for phd in self.progs:
-                if PT[prog.type] == PT['PT_LOAD']:
+                if phd.type == 'PT_LOAD':
                     continue
                 if phd.vaddr and phd.vaddr in ph:
                     phd.offset = ph.offset + (phd.vaddr - ph.vaddr)
@@ -1271,7 +1404,7 @@ class ElfFile(StructBase):
             sh.pack_into(block, offset + (i * self.header.shentsize))
 
     @property
-    def size(self):
+    def _size(self):
         return self._offsets()[0]
 
     def sectionName(self, section):
@@ -1282,7 +1415,7 @@ class ElfFile(StructBase):
         """
         try:
             data = self.sections[self.header.shstrndx].data[section.nameoffset:]
-            return data.split(b'\0', 1)[0]
+            return str(data.split(b'\0', 1)[0])
         except Exception:
             pass
 
@@ -1293,6 +1426,9 @@ class ElfFile(StructBase):
     # helper methods below
     def save(self, path):
         """Pack and save elf file to path"""
+        self._regen_section_name_table()
+        self._regen_dyn()
+
         with io.open(path, 'wb') as f:
             f.write(self.pack())
 
@@ -1460,10 +1596,10 @@ class ElfFileHeader(StructBase):
                              self.phoff if self.phoff != None else 0,
                              self.shoff if self.shoff != None else 0,
                              self.flags if self.flags != None else 0,
-                             self.ehsize if self.ehsize != None else self.size,
-                             self.phentsize if self.phentsize != None else self.programHeaderClass.size,
+                             self.ehsize if self.ehsize != None else self._size,
+                             self.phentsize if self.phentsize != None else self.programHeaderClass._size,
                              self.phnum if self.phnum != None else 0,
-                             self.shentsize if self.shentsize != None else self.sectionHeaderClass.size,
+                             self.shentsize if self.shentsize != None else self.sectionHeaderClass._size,
                              self.shnum if self.shnum != None else 0,
                              self.shstrndx if self.shstrndx != None else 0)
         return self
@@ -1677,7 +1813,7 @@ class ElfProgramHeader(StructBase):
 
     @property
     def isload(self):
-        return PT[self.type].name == 'PT_LOAD'
+        return self.type == 'PT_LOAD'
 
     def __contains__(self, vaddr):
         return vaddr >= self.vaddr and vaddr < self.vaddr + self.vsize
@@ -1739,6 +1875,10 @@ class ElfDyn(StructBase):
     tag = None
     val = None
     coder = None
+
+    def __init__(self, tag=None, val=None):
+        self.tag = tag
+        self.val = val
 
     def unpack_from(self, block, offset=0):
         self.tag, self.val = self.coder.unpack_from(block, offset)
