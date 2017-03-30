@@ -1259,7 +1259,7 @@ class ElfFile(StructBase):
         addr = lambda a: self.addrPack.pack(a)
         dt = []
 
-        strings = [sym.name for sym in self.symtab] + self.needed
+        strings = [b''] + [sym.name for sym in self.symtab] + self.needed
         if self.soname:
             strings.append(self.soname)
         if self.rpath:
