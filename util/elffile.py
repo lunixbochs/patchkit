@@ -89,6 +89,17 @@ class Coding(object):
     def __repr__(self):
         return '<Coding {}>'.format(self.name)
 
+class Prop(object):
+    def __init__(self, coding):
+        self.coding = coding
+        self.name = '_' + coding.name
+
+    def __get__(self, obj, t=None):
+        return getattr(obj, self.name)
+
+    def __set__(self, obj, val):
+        setattr(obj, self.name, self.coding.fallback(val))
+
 def co2int(c):
     if isinstance(c, int):
         return c
@@ -1498,14 +1509,14 @@ class ElfFileHeader(StructBase):
     dependent methods.
     """
 
-    type = None
+    type = Prop(ET)
     """
     The 'type', (sic), of the file which represents whether this file
     is an executable, relocatable object, shared library, etc.
     Encoded using :py:class:`ET`.
     """
 
-    machine = None
+    machine = Prop(EM)
     """Specifies the processor architecture of the file.  Encoded using :py:class:`EM`."""
 
     version = None
@@ -1661,7 +1672,7 @@ class ElfSectionHeader(StructBase):
     name = None
     """The name of this section."""
 
-    type = None
+    type = Prop(SHT)
     """Section type encoded with :py:class:`SHT`."""
 
     flags = None
@@ -1758,7 +1769,7 @@ class ElfProgramHeader(StructBase):
     PN_XNUM = 0xffff
     """Program header overflow number."""
 
-    type = None
+    type = Prop(PT)
     """Segment type encoded with :py:class:`PT`."""
 
     offset = None
