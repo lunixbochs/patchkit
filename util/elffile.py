@@ -1237,7 +1237,7 @@ class ElfFile(StructBase):
             if pdyn.type == 'PT_DYNAMIC':
                 break
         else:
-            # no PT_DYNAMIC section
+            # no PT_DYNAMIC  segment
             return
 
         for ph in self.progs:
@@ -1246,11 +1246,11 @@ class ElfFile(StructBase):
                 # NOTE: the old PT_DYNAMIC is ignored
                 break
         else:
-            # TODO: we should maybe just add a dedicated segment for DYNAMIC
+            # TODO: we should maybe just add a dedicated LOAD segment for DYNAMIC
             print('WARNING: Could not inject PT_DYNAMIC. The file will likely fail to link.')
             return
 
-        # `dyndata` is all data required by the PT_DYNAMIC section
+        # `dyndata` is all data required by the PT_DYNAMIC segment
         # such as strtab, symtab, etc
         # `dynent` is the actual PT_DYNAMIC table
         dynoff = ph.vaddr + len(ph.data)
