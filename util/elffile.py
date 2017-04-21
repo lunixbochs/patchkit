@@ -849,9 +849,9 @@ class ElfFile(StructBase):
 
         * ident + header
         * program data
+          * program headers (in segment with offset 0)
         * section data
         * section headers
-        * program headers
         """
 
         self._regen_section_name_table()
@@ -871,18 +871,14 @@ class ElfFile(StructBase):
         for p in self.progs:
             if p.offset == 0 and PT[p.type] == PT['PT_LOAD']:
                 # HACK: put PHDR at the end of the first segment
-                p.filesz = len(p.data)
-                p.memsz = max(p.memsz, p.filesz)
-                phoff = p.offset + p.filesz
+                phoff = p.offset + len(p.data)
 
                 phsize = len(self.progs) * self.header.phentsize
                 if phdr:
                     phdr.offset = phoff
-                    phdr.vaddr = p.vaddr + phoff
+                    phdr.vaddr = phdr.paddr = p.vaddr + phoff
                     phdr.filesz = phsize
                     phdr.virtual = True
-
-                x += p.filesz + phsize
                 break
         else:
             print("Warning: did not relocate PHDR.")
@@ -894,23 +890,25 @@ class ElfFile(StructBase):
             if p.virtual or not PT[p.type] == PT['PT_LOAD']:
                 continue
             p.filesz = len(p.data)
-            p.memsz = max(p.memsz, p.filesz)
-            if p.align:
-                # we don't want to make super huge bins, assume everyone is <=8kb pages
-                if p.align > 0x2000:
-                     p.align = 0x2000
+            # FIXME: repatching a file will spew PHDRs at the end of TEXT
+            if p.offset is 0:
+                p.filesz += phsize
+                x = offset + p.filesz
+            else:
+                if p.align:
+                    # we don't want to make super huge bins, assume everyone is <=8kb pages
+                    if p.align > 0x2000:
+                         p.align = 0x2000
 
-                # offset % align == vaddr % align
-                a, b = x % p.align, p.vaddr % p.align
-                if a < b:
-                    x += b - a
-                elif a > b:
-                    x += p.align - (a - b)
-
-            if p.offset > 0 or p.offset is None:
+                    # offset % align == vaddr % align
+                    a, b = x % p.align, p.vaddr % p.align
+                    if a < b:
+                        x += b - a
+                    elif a > b:
+                        x += p.align - (a - b)
                 p.offset = x
-
-            x += p.filesz
+                x += p.filesz
+            p.memsz = max(p.memsz, p.filesz)
 
         sdoff = x
         for s in self.sections:
@@ -922,7 +920,6 @@ class ElfFile(StructBase):
         x += (len(self.sections) * self.header.shentsize)
 
         total = x
-
         return (total, pdoff, sdoff, shoff, phoff)
 
     def _regen_section_name_table(self):
@@ -983,9 +980,9 @@ class ElfFile(StructBase):
                 continue
 
             if PT[prog.type] == PT['PT_LOAD'] and prog.offset == 0:
-                block[offset:prog.filesz - offset] = prog.data[offset:]
+                block[offset:len(prog.data) - offset] = prog.data[offset:]
             else:
-                block[prog.offset:prog.offset + prog.filesz] = prog.data
+                block[prog.offset:prog.offset + len(prog.data)] = prog.data
 
         # fix section and non-LOAD PH offsets
         for ph in self.progs:
