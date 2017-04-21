@@ -260,6 +260,7 @@ class Context(object):
             typ = 'c'
         elif hex is not None:
             raw = binascii.unhexlify(hex)
+            typ = 'raw'
         elif raw is not None:
             typ = 'raw'
         else:
