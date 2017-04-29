@@ -1,5 +1,7 @@
 from capstone.x86_const import *
+import re as _re
 
+# TODO: this is all x86_specific :(
 JMPS = [
     X86_INS_JA,
     X86_INS_JAE,
@@ -32,6 +34,9 @@ class Base(object):
     def __repr__(self):
         return '<%s %s>' % (self.__class__.__name__, repr(str(self)))
 
+def re_match(maybe_re, s):
+    pass
+
 class Op(Base):
     ins = None
     op = None
@@ -39,6 +44,7 @@ class Op(Base):
     @classmethod
     def fromop(cls, ins, op):
         i = cls()
+        i.any = False
         i.ins = ins
         i.op = op
         i.parse()
@@ -49,17 +55,24 @@ class Op(Base):
 
 class LabelOp(Op):
     def __init__(self, name=None, any=False):
+        if name is None:
+            any = True
         self.name = name
         self.any = any
 
     def __eq__(self, other):
+        if other == LabelOp:
+            return True
         return isinstance(other, LabelOp) and (other.name == self.name or self.any or other.any)
 
     def __str__(self):
         return self.name
 
 class Imm(Op):
-    def __init__(self, val=0, any=False):
+    def __init__(self, val=None, any=False):
+        if val is None:
+            val = 0
+            any = True
         self.val = val
         self.any = any
 
@@ -69,6 +82,8 @@ class Imm(Op):
     def __eq__(self, other):
         if isinstance(other, (int, long)) and (self.val == other):
             return True
+        if other == Imm:
+            return True
         return isinstance(other, Imm) and (other.val == self.val or self.any or other.any)
 
     def __cmp__(self, other):
@@ -77,25 +92,40 @@ class Imm(Op):
         return cmp(self.val, other.val)
 
     def __str__(self):
+        if self.any:
+            return '<imm>'
         if self.val >= 0:
             return '0x%x' % self.val
         else:
             return '-0x%x' % abs(self.val)
 
 class Reg(Op):
-    def __init__(self, reg='', any=False):
-        self.reg = reg
+    def __init__(self, reg=None, any=False, re=None):
+        self.re = None
+        self.reg = reg or ''
         self.any = any
+        if re is not None:
+            self.re = _re.compile(re)
+        elif reg is None:
+            self.any = True
 
     def parse(self):
         self.reg = self.ins.reg_name(self.op.reg)
 
     def __eq__(self, other):
-        if isinstance(other, basestring) and self.reg == other:
+        if isinstance(other, basestring) and (self.reg == other or self.re and self.re.match(other)):
             return True
-        return isinstance(other, Reg) and (other.reg == self.reg or self.any or other.any)
+        return isinstance(other, Reg) and (
+            other.reg == self.reg or
+            self.any or other.any or
+            bool(self.re and self.re.match(other.reg)) or
+            bool(other.re and other.re.match(self.reg)))
 
     def __str__(self):
+        if self.any:
+            return '<reg>'
+        if self.re and not self.reg:
+            return '/%s/' % self.re.pattern
         return self.reg
 
 class Mem(Op):
@@ -133,11 +163,15 @@ class Mem(Op):
         self.off = op.disp
 
     def __eq__(self, other):
+        if other == Mem:
+            return True
         return isinstance(other, Mem) and ((
             self.size, self.base, self.index, self.segment, self.scale, self.off,
         ) == (other.size, other.base, other.index, other.segment, other.scale, other.off) or self.any or other.any)
 
     def __str__(self):
+        if self.any:
+            return '<mem>'
         tmp = []
         if self.base:
             tmp.append(self.base)
@@ -187,18 +221,38 @@ class Ins(Base):
         return c
 
     @property
-    def dst(self):
-        return self.ops[0]
+    def dst(self): return self.ops[0]
 
     @property
-    def src(self):
-        return self.ops[1]
+    def src(self): return self.ops[1]
+
+    @property
+    def a(self): return self.ops[0]
+
+    @property
+    def b(self): return self.ops[1]
+
+    @property
+    def c(self): return self.ops[2]
+
+    @property
+    def d(self): return self.ops[3]
+
+    @property
+    def e(self): return self.ops[4]
+
+    @property
+    def f(self): return self.ops[5]
 
     def __init__(self, mne, *ops, **kwargs):
         self.mne = mne
         self.ops = ops
         self.label = None
         self.any = kwargs.get('any', False)
+        re = kwargs.pop('re', None)
+        self.re = re
+        if re is not None:
+            self.re = re.compile(re)
 
     def op_str(self):
         return ', '.join(map(str, self.ops))
@@ -206,10 +260,18 @@ class Ins(Base):
     def __eq__(self, other):
         if isinstance(other, basestring) and other == self.mne:
             return True
-        return isinstance(other, Ins) and self.mne == other.mne and (tuple(other.ops) == tuple(self.ops) or self.any or other.any)
+        elif isinstance(other, Ins):
+            return isinstance(other, Ins) and (
+                self.any or other.any or
+                (self.mne == other.mne or
+                    bool(self.re and self.re.match(other.mne)) or
+                    bool(other.re and other.re.match(self.mne))) and
+                len(other.ops) == len(self.ops) and all(other.ops[i] == op for i, op in enumerate(self.ops)))
 
     def __str__(self):
         out = '%s %s' % (self.mne, self.op_str())
+        if self.re and not self.mne:
+            out = '/%s/ %s' % (self.re.pattern, self.op_str)
         if self.label:
             out = '%s: %s' % self.label
         return out
@@ -227,6 +289,23 @@ class Label(Base):
 class IR(list):
     def asm(self):
         return '\n'.join(map(str, self))
+
+    def findall(self, query, stop=None):
+        def fuzzy(a, match):
+            if isinstance(match, list):
+                for other in match:
+                    if a == other:
+                        return True
+            else:
+                return a == match
+
+        out = []
+        for ins in self:
+            if fuzzy(ins, query):
+                out.append(ins)
+            if stop and fuzzy(ins, stop):
+                break
+        return out
 
 def irdis(dis):
     if not dis:
