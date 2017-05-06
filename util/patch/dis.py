@@ -297,7 +297,7 @@ class IR(list):
         return '\n'.join(map(str, self))
 
     def findall(self, query, stop=None):
-        return list(IRStream(self).filter(query, stop))
+        return IR(IRStream(self).filter(query, stop))
 
 class IRStream:
     def __init__(self, gen):
