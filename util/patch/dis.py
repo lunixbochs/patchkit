@@ -287,7 +287,12 @@ class Label(Base):
         return '%s:' % self.name
 
 class IR(list):
+    def cs(self):
+        'converts IR back to capstone assembly'
+        return [ins.ins for ins in self]
+
     def asm(self):
+        'converts IR to assembly source'
         return '\n'.join(map(str, self))
 
     def findall(self, query, stop=None):
@@ -304,9 +309,11 @@ class IRStream:
             else:
                 yield Ins.fromins(ins)
 
-    def filter(self, query, stop=None):
+    def filter(self, query=None, stop=None):
         def fuzzy(a, match):
-            if isinstance(match, list):
+            if match is None:
+                return True
+            if isinstance(match, (list, tuple)):
                 for other in match:
                     if a == other:
                         return True
