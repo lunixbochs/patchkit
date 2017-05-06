@@ -291,6 +291,20 @@ class IR(list):
         return '\n'.join(map(str, self))
 
     def findall(self, query, stop=None):
+        return list(IRStream(self).filter(query, stop))
+
+class IRStream:
+    def __init__(self, gen):
+        self.gen = gen
+
+    def __iter__(self):
+        for ins in self.gen:
+            if isinstance(ins, Base):
+                yield ins
+            else:
+                yield Ins.fromins(ins)
+
+    def filter(self, query, stop=None):
         def fuzzy(a, match):
             if isinstance(match, list):
                 for other in match:
@@ -299,13 +313,11 @@ class IR(list):
             else:
                 return a == match
 
-        out = []
         for ins in self:
             if fuzzy(ins, query):
-                out.append(ins)
+                yield ins
             if stop and fuzzy(ins, stop):
                 break
-        return out
 
 def irdis(dis):
     if not dis:
@@ -316,6 +328,8 @@ def irdis(dis):
     tmp = []
     next_label = 1
     labels = {}
+    # TODO: make more portable (maybe allow arch to do this step)
+    # find jumps
     for ins in dis:
         if ins.id in JMPS:
             dst = ins.operands[0]

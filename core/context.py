@@ -137,8 +137,23 @@ class Context(object):
     def dis(self, addr, size=64):
         return self.arch.dis(self.elf.read(addr, size), addr)
 
+    def disiter(self, addr):
+        # TODO: handle reading past the end
+        dis = self.dis(addr, 128)
+        while True:
+            if not dis:
+                break
+            for ins in dis:
+                yield ins
+            ins = dis[-1]
+            addr = ins.address + len(ins.bytes)
+            dis = self.dis(addr, 128)
+
     def irdis(self, addr, size=64):
         return dis.irdis(self.dis(addr, size))
+
+    def irstream(self, addr):
+        return dis.IRStream(self.disiter(addr))
 
     def ir(self, asm, **kwargs):
         return dis.irdis(self.arch.dis(self.asm(asm, **kwargs), addr=kwargs.get('addr', 0)))
