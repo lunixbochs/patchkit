@@ -267,6 +267,7 @@ class Ins(Base):
                     bool(self.re and self.re.match(other.mne)) or
                     bool(other.re and other.re.match(self.mne))) and
                 len(other.ops) == len(self.ops) and all(other.ops[i] == op for i, op in enumerate(self.ops)))
+        return False
 
     def __str__(self):
         out = '%s %s' % (self.mne, self.op_str())
