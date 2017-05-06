@@ -6,7 +6,7 @@ import compiler
 from func import Func
 from util import stdlib
 from util.elffile import EM
-from util.patch.dis import irdis
+from util.patch import dis
 
 def pfcol(s):
     return '[\033[1m\033[32m%s\033[0m] ' % s
@@ -137,8 +137,11 @@ class Context(object):
     def dis(self, addr, size=64):
         return self.arch.dis(self.elf.read(addr, size), addr)
 
+    def irdis(self, addr, size=64):
+        return dis.irdis(self.dis(addr, size))
+
     def ir(self, asm, **kwargs):
-        return irdis(self.arch.dis(self.asm(asm, **kwargs), addr=kwargs.get('addr', 0)))
+        return dis.irdis(self.arch.dis(self.asm(asm, **kwargs), addr=kwargs.get('addr', 0)))
 
     def make_writable(self, addr):
         for prog in self.elf.progs:
