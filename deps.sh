@@ -55,7 +55,7 @@ cd "$build/unicorn/bindings/python" && sudo make install
 which ldconfig &>/dev/null && sudo ldconfig
 
 echo
-echo "All done! Don't forget to `sudo pip install coding`, or use a virtualenv if you're hip with that."
+echo "All done!"
 echo
 echo -n "Testing Python import: "
-python -c "import capstone, keystone, unicorn; print 'works.'"
+python -c "import capstone, keystone, unicorn; capstone.CS_ARCH_X86, unicorn.UC_ARCH_X86, keystone.KS_ARCH_X86; print 'works.'"
