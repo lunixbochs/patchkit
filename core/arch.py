@@ -59,9 +59,9 @@ class x86(Arch):
         sub edi, ref - _PKST_
         mov esi, edi
 
-        add edi, 0x%x
-        add esi, 0x%x
-        mov ecx, 0x%x
+        add edi, %d
+        add esi, %d
+        mov ecx, %d
 
         rep movsb
 
@@ -82,7 +82,7 @@ class x86_64(x86):
 
         lea rdi, [rip - _PKST_ + %d]
         lea rsi, [rip - _PKST_ + %d]
-        mov rcx, 0x%x
+        mov rcx, %d
 
         rep movsb
 
