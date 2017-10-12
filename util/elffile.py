@@ -740,7 +740,7 @@ class ElfFileIdent(StructBase):
     osabi = None
     abiversion = None
 
-    coder = struct.Struct(b'=4sBBBBBxxxxxxx')
+    coder = struct.Struct(b'4sBBBBBxxxxxxx')
 
     # size is EI_IDENT
     assert (coder.size == EI_NIDENT), 'coder.size = {0}({0}), EI_NIDENT = {0}({0})'.format(coder.size, type(coder.size),
@@ -759,7 +759,7 @@ class ElfFileIdent(StructBase):
 
     def __repr__(self):
         return ('<{0}@{1}: coder={2}, magic=\'{3}\', elfClass={4}, elfData={5}, fileVersion={6}, osabi={7}, abiversion={8}>'
-                .format(self.__class__.__name__, hex(id(self)), self.coder, self.magic,
+                .format(self.__class__.__name__, hex(id(self)), self.coder, self.magic.encode('hex'),
                         ElfClass[self.elfClass] if self.elfClass in ElfClass else self.elfClass,
                         ElfData[self.elfData] if self.elfData in ElfData else self.elfData,
                         self.fileVersion, self.osabi, self.abiversion))
@@ -1830,6 +1830,82 @@ class ElfSym(StructBase):
                 .format(self.__class__.__name__, hex(id(self)),
                     self.name, self.value, self.size, self.info, self.other, self.shndx, self.dyn))
 
+class ElfVerDef:
+    version = None
+    flags = None
+    idx = None
+    count = None
+    hash = None
+    aux = None
+    next = None
+
+    def unpack_from(self, codec, block, offset=0):
+        self.version, self.flags, self.idx, self.count, self.hash, self.aux, self.next = codec.verdef.unpack_from(block, offset)
+        return self
+
+    def pack_into(self, codec, block, offset=0):
+        codec.verdef.pack_into(block, offset, self.version, self.flags, self.idx, self.count, self.hash, self.aux, self.next)
+        return self
+
+    def __repr__(self):
+        return ('<{}@{}: version={}, flags={}, idx={}, count={}, hash={}, aux={}, next={}>'
+                .format(self.__class__.__name__, hex(id(self)),
+                    self.version, self.flags, self.idx, self.count, self.hash, self.aux, self.next))
+
+class ElfVerdAux:
+    name = None
+    next = None
+
+    def unpack_from(self, codec, block, offset=0):
+        self.name, self.next = codec.verdaux.unpack_from(block, offset)
+        return self
+
+    def pack_into(self, codec, block, offset=0):
+        codec.verdaux.pack_into(block, offset, self.name, self.next)
+        return self
+
+    def __repr__(self):
+        return ('<{}@{}: name={}, next={}>'.format(self.__class__.__name__, hex(id(self)), self.name, self.next))
+
+class ElfVerNeed:
+    version = None
+    count = None
+    file = None
+    aux = None
+    next = None
+
+    def unpack_from(self, codec, block, offset=0):
+        self.version, self.count, self.file, self.aux, self.next = codec.sym.unpack_from(block, offset)
+        return self
+
+    def pack_into(self, codec, block, offset=0):
+        codec.sym.pack_into(block, offset, self.version, self.count, self.file, self.aux, self.next)
+        return self
+
+    def __repr__(self):
+        return ('<{}@{}: version={}, count={}, file={}, aux={}, next={}>'.format(self.__class__.__name__, hex(id(self)),
+                    self.version, self.count, self.file, self.aux, self.next))
+
+class ElfVernAux:
+    hash = None
+    flags = None
+    other = None
+    name = None
+    next = None
+
+    def unpack_from(self, codec, block, offset=0):
+        self.hash, self.flags, self.other, self.name, self.next = codec.vernaux.unpack_from(block, offset)
+        return self
+
+    def pack_into(self, codec, block, offset=0):
+        codec.vernaux.pack_into(block, offset, self.hash, self.flags, self.other, self.name, self.next)
+        return self
+
+    def __repr__(self):
+        return ('<{}@{}: hash={}, flags={}, other={}, name={}, next={}>'
+                .format(self.__class__.__name__, hex(id(self)),
+                    self.hash, self.flags, self.other, self.name, self.next))
+
 class Codec:
     """Base codec for all ElfFile objects"""
     def __init__(self, order):
@@ -1842,7 +1918,9 @@ class Codec:
         self.rela = struct.Struct(order + self.rela)
         self.sym = struct.Struct(order + self.sym)
         self.verdef = struct.Struct(order + self.verdef)
-        self.versym = struct.Struct(order + self.versym)
+        self.verdaux = struct.Struct(order + self.verdaux)
+        self.verneed = struct.Struct(order + self.verneed)
+        self.vernaux = struct.Struct(order + self.vernaux)
         self.addr = struct.Struct(order + self.addr)
 
 class Codec32(Codec):
@@ -1855,8 +1933,10 @@ class Codec32(Codec):
     rel = 'II'
     rela = 'III'
     sym = 'IIIBBH'
-    verdef = ''
-    versym = ''
+    verdef = 'HHHHIII'
+    verdaux = 'II'
+    verneed = 'HHIII'
+    vernaux = 'IHHII'
     addr = 'I'
 
 class Codec64(Codec):
@@ -1869,8 +1949,10 @@ class Codec64(Codec):
     rel = 'QQ'
     rela = 'QQQ'
     sym = 'IBBHQQ'
-    verdef = ''
-    versym = ''
+    verdef = 'HHHHIII'
+    verdaux = 'II'
+    verneed = 'HHIII'
+    vernaux = 'IHHII'
     addr = 'Q'
 
 class ElfFile32b(ElfFile):
