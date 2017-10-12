@@ -101,7 +101,7 @@ class Binary:
                 cb(pt)
 
         for prog in (self.patch, self.nxpatch, self.linkpatch, self.jitpatch):
-            if not prog.filesz:
+            if not prog.filesz and prog in self.elf.progs:
                 self.elf.progs.remove(prog)
 
         self.elf.save(path)
