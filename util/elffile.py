@@ -919,6 +919,7 @@ class ElfFile(StructBase):
                     'DT_FLAGS', 'DT_SYMBOLIC', 'DT_TEXTREL', 'DT_BINDNOW',
                     'DT_RELA', 'DT_RELASZ', 'DT_RELAENT',
                     'DT_REL', 'DT_RELSZ', 'DT_RELENT',
+                    'DT_VERNEED', 'DT_VERNEEDNUM', 'DT_VERSYM', 'DT_VERDEF', 'DT_VERDEFNUM',
                 ]
 
                 off = 0
