@@ -636,9 +636,7 @@ class ElfGnuHash:
         raise NotImplementedError
 
 def open(name=None, fileobj=None, map=None, block=None):
-    """
-
-    The open function takes some form of file identifier and creates
+    """The open function takes some form of file identifier and creates
     an :py:class:`ElfFile` instance from it.
 
     :param :py:class:`str` name: a file name
@@ -652,8 +650,7 @@ def open(name=None, fileobj=None, map=None, block=None):
     #. a file name
     #. :py:class:`file` object
     #. :py:mod:`mmap.mmap`, or
-    #. a block of memory
-    """
+    #. a block of memory"""
 
     if block:
         if not name:
@@ -695,18 +692,7 @@ class StructBase(object):
     subclasses.
     """
 
-    @property
-    def _size(self):
-        return self.coder.size
-    """
-    Exact size in bytes of a block of memory into which is suitable
-    for packing this instance.
-    """
-
-    def unpack(self, block):
-        return self.unpack_from(block)
-
-    def unpack_from(self, block, offset=0):
+    def unpack_from(self, codec, block, offset=0):
         """
         Set the values of this instance from an in-memory
         representation of the struct.
@@ -717,12 +703,7 @@ class StructBase(object):
         """
         raise NotImplementedError
 
-    def pack(self):
-        x = bytearray(self._size)
-        self.pack_into(x)
-        return x
-
-    def pack_into(self, block, offset=0):
+    def pack_into(self, codec, block, offset=0):
         """
         Store the values of this instance into an in-memory
         representation of the file.
@@ -735,11 +716,9 @@ class StructBase(object):
 
 
 EI_NIDENT = 16
-"""
-Length of the byte-endian-independent, word size independent initial
+"""Length of the byte-endian-independent, word size independent initial
 portion of the ELF header file.  This is the portion represented by
-:py:class:`ElfFileIdent`.
-"""
+:py:class:`ElfFileIdent`."""
 
 class ElfFileIdent(StructBase):
     """
@@ -786,18 +765,7 @@ class ElfFileIdent(StructBase):
                         self.fileVersion, self.osabi, self.abiversion))
 
 class ElfFile(StructBase):
-    """
-    This class corresponds to an entire ELF format file.  It is an
-    abstract base class which is not intended to be instantiated but
-    rather subclassed.
-
-    This abstract base class works in tight concert with it's
-    subclasses: :py:class:`ElfFile32b`, :py:class:`ElfFile32l`,
-    :py:class:`ElfFile64b`, and :py:class:`ElfFile64l`.  This abstract
-    base class sets useless defaults and includes byte order and word
-    size independent methods while the subclasses define byte order
-    and word size dependent methods.
-    """
+    """This class corresponds to an entire ELF format file."""
 
     name = None
     """A :py:class:`str` containing the file name for this ELF format object file."""
@@ -814,18 +782,10 @@ class ElfFile(StructBase):
     progs = None
     """A :py:class:`list` of the program headers.  This corresponds to the program header table."""
 
-    headerClass = None
-    """Intended to be set by the subclasses.  Points to the byte order and word size sensitive class to be used for the ELF file header."""
-
-    addrPack = None
-    """Intended to be set by subclasses.  Used to unpack addresses."""
+    codec = None
+    """A :py:class:`Codec` containing type packing directives."""
 
     # start PT_DYNAMIC attrs
-    dynClass = None
-    relClass = None
-    relaClass = None
-    symClass = None
-    """Set by subclasses. Points to byte and word size class for ELF Dyn entries."""
 
     dyn_unk = None
     """A :py:class:`list` of unknown PT_DYNAMIC entries to pass through."""
@@ -867,17 +827,12 @@ class ElfFile(StructBase):
     # end PT_DYNAMIC attrs
 
     class NO_CLASS(Exception):
-        """
-        Raised when attempting to decode an unrecognized value for
-        :py:class:`ElfClass`, (that is, word size).
-        """
-        pass
+        """Raised when attempting to decode an unrecognized value for
+        :py:class:`ElfClass`, (that is, word size)."""
 
     class NO_ENCODING(Exception):
-        """
-        Raised when attempting to decode an unrecognized value for
-        :py:class:`ElfData`, (that is, byte order).
-        """
+        """Raised when attempting to decode an unrecognized value for
+        :py:class:`ElfData`, (that is, byte order)."""
 
     @staticmethod
     def encodedClass(ident):
@@ -968,8 +923,8 @@ class ElfFile(StructBase):
 
                 off = 0
                 while off < len(ph.data):
-                    ent = self.dynClass().unpack_from(ph.data, off)
-                    off += ent._size
+                    ent = ElfDyn().unpack_from(self.codec, ph.data, off)
+                    off += self.codec.dyn.size
                     if ent.tag == 'DT_NULL':
                         break
 
@@ -995,13 +950,13 @@ class ElfFile(StructBase):
                             addr = symhash[0].val
                             s = self.segment(addr)
                             cls = ElfHash
-                        base, count = cls.count(s.data[addr - s.vaddr:], self.addrPack)
+                        base, count = cls.count(s.data[addr - s.vaddr:], self.codec.addr)
 
-                        assert(syment == self.symClass.coder.size)
+                        assert(syment == self.codec.sym.size)
                         s = self.segment(symtab)
                         symtab = self.read(symtab, count * syment)
                         for i in xrange(count):
-                            sym = self.symClass().unpack_from(symtab, i * syment)
+                            sym = ElfSym().unpack_from(self.codec, symtab, i * syment)
                             if i >= base:
                                 sym.dyn = True
                             sym.name = self.readstr(strtab + sym.name_off)
@@ -1017,10 +972,10 @@ class ElfFile(StructBase):
                         return []
                     out = []
                     data = self.read(vaddr[0].val, size[0].val)
-                    asize = self.addrPack.size
+                    asize = self.codec.addr.size
                     data = data[:len(data) % asize]
                     for i in xrange(0, len(data), asize):
-                        out.append(self.addrPack.unpack(data[i:i+asize])[0])
+                        out.append(self.codec.addr.unpack(data[i:i+asize])[0])
                     return out
 
                 self.preinit += read_ptr_arr(dynd['DT_PREINIT_ARRAY'], dynd['DT_PREINIT_ARRAYSZ'])
@@ -1047,17 +1002,17 @@ class ElfFile(StructBase):
                         rel, relsz, relent = rel[0].val, relsz[0].val, relent[0].val
                         data = self.read(rel, relsz)
                         for i in xrange(0, len(data), relent):
-                            ent = cls().unpack(data[i:i+relent])
+                            ent = cls().unpack_from(self.codec, data[i:i+relent])
                             rels.append(ent)
                     return rels
 
-                self.rel = load_rel(dynd['DT_RELA'], dynd['DT_RELASZ'], dynd['DT_RELAENT'], self.relaClass)
-                rel = load_rel(dynd['DT_REL'], dynd['DT_RELSZ'], dynd['DT_RELENT'], self.relClass)
+                self.rel = load_rel(dynd['DT_RELA'], dynd['DT_RELASZ'], dynd['DT_RELAENT'], ElfRela)
+                rel = load_rel(dynd['DT_REL'], dynd['DT_RELSZ'], dynd['DT_RELENT'], ElfRel)
                 for ent in rel:
-                    x = self.relaClass()
+                    x = ElfRela()
                     x.off = ent.off
                     x.info = ent.info
-                    x.addend = self.addrPack.unpack(self.read(x.off, self.addrCoding.size))[0]
+                    x.addend = self.codec.addr.unpack(self.read(x.off, self.addrCoding.size))[0]
                     self.rel.append(x)
 
     def _unpack_ident(self, block, offset):
@@ -1067,14 +1022,14 @@ class ElfFile(StructBase):
         
     def _unpack_file_header(self, block, offset):
         if not self.header:
-            self.header = self.headerClass()
-        self.header.unpack_from(block, offset + self.ident._size)
+            self.header = ElfFileHeader()
+        self.header.unpack_from(self.codec, block, offset + self.ident.coder.size)
 
     def _unpack_section_headers(self, block, offset):
         if self.header.shoff != 0:
             sectionCount = self.header.shnum
             for i in range(sectionCount):
-                sh = self.sectionHeaderClass().unpack_from(block,
+                sh = ElfSectionHeader().unpack_from(self.codec, block,
                         offset + self.header.shoff + (i * self.header.shentsize))
                 if sh.addr == 0:
                     base = offset + sh.offset
@@ -1100,17 +1055,16 @@ class ElfFile(StructBase):
                 phnum = self.progs[0].info
 
             for i in range(phnum):
-                ph = self.programHeaderClass().unpack_from(
-                    block, offset + self.header.phoff + (i * self.header.phentsize),
+                ph = ElfProgramHeader().unpack_from(
+                    self.codec, block,
+                    offset + self.header.phoff + (i * self.header.phentsize),
                 )
                 base = offset + ph.offset
                 ph.data = bytearray(block[base:base + ph.filesz])
                 self.progs.append(ph)
 
     def pack_into(self, block, offset=0):
-        """
-        Pack the entire file.  Rewrite offsets as necessary.
-        """
+        """Pack the entire file.  Rewrite offsets as necessary."""
         total, pdoff, sdoff, shoff, phoff = self._offsets(offset)
 
         self._pack_program_data(block, pdoff)
@@ -1120,15 +1074,13 @@ class ElfFile(StructBase):
         self._pack_section_headers(block, shoff)
 
     def _offsets(self, offset=0):
-        """
-        Current packing layout is:
+        """Current packing layout is:
 
         * ident + header
         * program data
           * program headers (in segment with offset 0)
         * section data
-        * section headers
-        """
+        * section headers"""
 
         x = offset
         x += self.header.ehsize
@@ -1256,7 +1208,7 @@ class ElfFile(StructBase):
         dynoff = ph.vaddr + len(ph.data)
         dyndata = bytearray()
         pos = lambda: dynoff + len(dyndata)
-        addr = lambda a: self.addrPack.pack(a)
+        addr = lambda a: self.codec.addr.pack(a)
         dt = []
 
         strings = [b''] + [sym.name for sym in self.symtab] + self.needed
@@ -1308,7 +1260,7 @@ class ElfFile(StructBase):
         dnames = []
         symtab = list(sorted(self.symtab, key=lambda x: x.dyn))
         symbase = 0
-        syment = self.symClass.coder.size
+        syment = self.codec.sym.size
         symdata = bytearray(syment * len(symtab))
         for i, sym in enumerate(symtab):
             if sym.dyn and not symbase:
@@ -1316,14 +1268,14 @@ class ElfFile(StructBase):
                 dnames.append(sym.name)
             names.append(sym.name)
             sym.name_idx = strd[sym.name]
-            sym.pack_into(symdata, i * syment)
+            sym.pack_into(self.codec, symdata, i * syment)
 
         dt.append(('DT_SYMTAB', pos()))
         dt.append(('DT_SYMENT', syment))
         dyndata += symdata
 
         dt.append(('DT_HASH', pos()))
-        hashtab = ElfHash.build(symbase, dnames, self.addrPack)
+        hashtab = ElfHash.build(symbase, dnames, self.codec.addr)
         dyndata += hashtab
 
         if self.rpath:
@@ -1334,17 +1286,17 @@ class ElfFile(StructBase):
         # TODO: write rels
         dt.append(('DT_RELA', 0))
         dt.append(('DT_RELASZ', 0))
-        dt.append(('DT_RELAENT', self.relaClass.coder.size))
+        dt.append(('DT_RELAENT', self.codec.rela.size))
 
         ph.data += dyndata
 
-        dyn = [self.dynClass(DT[a], b) for a, b in dt]
+        dyn = [ElfDyn(DT[a], b) for a, b in dt]
         dyn.extend(self.dyn_unk)
-        dyn.append(self.dynClass(DT['DT_NULL'], 0))
+        dyn.append(ElfDyn(DT['DT_NULL'], 0))
 
-        dynent = bytearray(len(dyn) * dyn[-1]._size)
+        dynent = bytearray(len(dyn) * self.codec.dyn.size)
         for i, ent in enumerate(dyn):
-            ent.pack_into(dynent, i * ent._size)
+            ent.pack_into(self.codec, dynent, i * self.codec.dyn.size)
 
         pdyn.vaddr = ph.vaddr + len(ph.data)
         pdyn.filesz = pdyn.memsz = len(dynent)
@@ -1367,12 +1319,12 @@ class ElfFile(StructBase):
         self.header.shnum = len(self.sections)
         self.header.shoff = shoff if len(self.sections) > 0 else 0
         self.header.phoff = phoff if len(self.progs) > 0 else 0
-        self.header.pack_into(block, offset + self.ident._size)
+        self.header.pack_into(self.codec, block, offset + self.ident.coder.size)
 
     def _pack_program_headers(self, block, offset=0):
         """Pack the program headers."""
         for i, ph in enumerate(self.progs):
-            ph.pack_into(block, offset + (i * self.header.phentsize))
+            ph.pack_into(self.codec, block, offset + (i * self.header.phentsize))
 
     def _pack_program_data(self, block, offset=0):
         """Pack the program header data. As a side effect, set the offset in the program headers."""
@@ -1414,18 +1366,16 @@ class ElfFile(StructBase):
         # TODO: first section header is reserved and should be all zeroes
         # need to verify and/or force one
         for i, sh in enumerate(self.sections):
-            sh.pack_into(block, offset + (i * self.header.shentsize))
+            sh.pack_into(self.codec, block, offset + (i * self.header.shentsize))
 
     @property
     def _size(self):
         return self._offsets()[0]
 
     def sectionName(self, section):
-        """
-        Given a section, return its name.
+        """Given a section, return its name.
 
-        :param :py:class:`ElfSectionHeader` section:
-        """
+        :param :py:class:`ElfSectionHeader` section:"""
         try:
             data = self.sections[self.header.shstrndx].data[section.nameoffset:]
             return str(data.split(b'\0', 1)[0])
@@ -1443,7 +1393,9 @@ class ElfFile(StructBase):
         self._regen_dyn()
 
         with io.open(path, 'wb') as f:
-            f.write(self.pack())
+            x = bytearray(self._size)
+            self.pack_into(x)
+            f.write(x)
 
     @property
     def entry(self):
@@ -1512,107 +1464,78 @@ class ElfFileHeader(StructBase):
     """
 
     type = Prop(ET)
-    """
-    The 'type', (sic), of the file which represents whether this file
+    """The 'type', (sic), of the file which represents whether this file
     is an executable, relocatable object, shared library, etc.
-    Encoded using :py:class:`ET`.
-    """
+    Encoded using :py:class:`ET`."""
 
     machine = Prop(EM)
     """Specifies the processor architecture of the file.  Encoded using :py:class:`EM`."""
 
     version = None
-    """
-    Specifies the version of the ELF format used for this file.
+    """Specifies the version of the ELF format used for this file.
     Should be 1 in most cases.  Extensions are expected to increment
-    the number.
-    """
+    the number."""
 
     entry = None
     """Virtual start address when this file is converted into a process.  Zero if not used."""
 
     phoff = None
-    """
-    Offset in bytes into this file at which the program header table,
-    (:py:class:`ElfProgramHeader`), starts.
-    """
+    """Offset in bytes into this file at which the program header table,
+    (:py:class:`ElfProgramHeader`), starts."""
 
     shoff = None
-    """
-    Offset in bytes into this file at which the section header table,
-    (:py:class:`ElfSectionHeader`), starts.
-    """
+    """Offset in bytes into this file at which the section header table,
+    (:py:class:`ElfSectionHeader`), starts."""
 
     flags = None
     """Any processor specific flags for this file."""
 
     ehsize = None
-    """
-    Size in bytes of the ELF file header, (:py:class:`ElfFileHeader`),
-    as represented in this file.
-    """
+    """Size in bytes of the ELF file header, (:py:class:`ElfFileHeader`), as represented in this file."""
     
     phentsize = None
-    """
-    Size in bytes of a program header table entry,
-    (:py:class:`ElfProgramHeader`), as represented in this file.  All
-    entries are the same size.
-    """
+    """Size in bytes of a program header table entry, (:py:class:`ElfProgramHeader`),
+    as represented in this file.  All entries are the same size."""
 
     phnum = None
-    """
-    A count of the number of program header table entries,
-    (:py:class:`ElfProgramHeader`), in this file.
-    """
+    """A count of the number of program header table entries, (:py:class:`ElfProgramHeader`), in this file."""
 
     shentsize = None
-    """
-    Size in bytes of a section table entry,
-    (:py:class:`ElfSectionHeader`), as represented in this file.  All
-    entries aer the same size.
-    """
+    """Size in bytes of a section table entry, (:py:class:`ElfSectionHeader`),
+    as represented in this file.  All entries are the same size."""
 
     shnum = None
-    """
-    A count of the number of section header table entries,
-    (:py:class:`ElfSectionHeader`), in this file.
-    """
+    """A count of the number of section header table entries, (:py:class:`ElfSectionHeader`), in this file."""
 
     shstrndx = None
-    """
-    The section header table index of the section name string table.
-    (SHN_UNDEF if there is none).
-    """
+    """The section header table index of the section name string table. (SHN_UNDEF if there is none)."""
 
     shstrhdr = None
-    """
-    Reference to the shstrtab section, in case you move sections around
-    before saving.
-    """
+    """Reference to the shstrtab section, in case you move sections around before saving."""
 
-    def unpack_from(self, block, offset=0):
+    def unpack_from(self, codec, block, offset=0):
         (self.type, self.machine, self.version, self.entry,
          self.phoff, self.shoff, self.flags, self.ehsize,
          self.phentsize, self.phnum, self.shentsize, self.shnum,
-         self.shstrndx) = self.coder.unpack_from(block, offset)
+         self.shstrndx) = codec.fileHeader.unpack_from(block, offset)
         self.type = ET.fallback(self.type)
         self.machine = EM.fallback(self.machine)
         return self
 
-    def pack_into(self, block, offset=0):
+    def pack_into(self, codec, block, offset=0):
         assert(self.type in ET)
         assert(self.machine in EM)
 
-        self.coder.pack_into(block, offset, co2int(self.type), co2int(self.machine),
+        codec.fileHeader.pack_into(block, offset, co2int(self.type), co2int(self.machine),
                              self.version if self.version != None else 1,
                              self.entry if self.entry != None else 0,
                              self.phoff if self.phoff != None else 0,
                              self.shoff if self.shoff != None else 0,
                              self.flags if self.flags != None else 0,
-                             self.ehsize if self.ehsize != None else self._size,
-                             self.phentsize if self.phentsize != None else self.programHeaderClass._size,
+                             self.ehsize if self.ehsize != None else self.codec.fileHeader.size,
+                             self.phentsize if self.phentsize != None else self.codec.programHeader.size,
                              self.phnum if self.phnum != None else 0,
-                             self.shentsize if self.shentsize != None else self.sectionHeaderClass._size,
+                             self.shentsize if self.shentsize != None else self.codec.sectionHeader.size,
                              self.shnum if self.shnum != None else 0,
                              self.shstrndx if self.shstrndx != None else 0)
         return self
@@ -1627,22 +1550,6 @@ class ElfFileHeader(StructBase):
                         hex(self.flags), self.ehsize, self.phnum, self.shentsize,
                         self.shnum, self.shstrndx))
 
-
-class ElfFileHeader32b(ElfFileHeader):
-    """This represents 32-bit, big-endian headers."""
-    coder = struct.Struct(b'>HHIIIIIHHHHHH')
-
-class ElfFileHeader32l(ElfFileHeader):
-    """This represents 32-bit, little-endian headers."""
-    coder = struct.Struct(b'<HHIIIIIHHHHHH')
-
-class ElfFileHeader64b(ElfFileHeader):
-    """This represents 64-bit, big-endian headers."""
-    coder = struct.Struct(b'>HHIQQQIHHHHHH')
-
-class ElfFileHeader64l(ElfFileHeader):
-    """This represents 64-bit, little-endian headers."""
-    coder = struct.Struct(b'<HHIQQQIHHHHHH')
 
 class ElfSectionHeader(StructBase):
     """
@@ -1665,11 +1572,9 @@ class ElfSectionHeader(StructBase):
     """
 
     nameoffset = None
-    """
-    Offset into the `section header string table section
-    <http://www.sco.com/developers/gabi/latest/ch4.strtab.html>`_ of
-    the name of this section.
-    """
+    """Offset into the `section header string table section
+    <http://www.sco.com/developers/gabi/latest/ch4.strtab.html>`_
+    of the name of this section."""
 
     name = None
     """The name of this section."""
@@ -1678,11 +1583,8 @@ class ElfSectionHeader(StructBase):
     """Section type encoded with :py:class:`SHT`."""
 
     flags = None
-    """
-    Flags which define miscellaneous attributes.  These are bit flags
-    which are or'd together.  The individual bit-flags are encoded
-    using :py:class:`SHF`.
-    """
+    """Flags which define miscellaneous attributes.  These are bit flags
+    which are or'd together.  The individual bit-flags are encoded using :py:class:`SHF`."""
     
     addr = None
     """The load address of this section if it will appear in memory during a running process."""
@@ -1694,10 +1596,10 @@ class ElfSectionHeader(StructBase):
     """Size in bytes of the content of this section."""
     
     link = None
-    """A section header table index.  It's meaning varies by context."""
+    """A section header table index. It's meaning varies by context."""
 
     info = None
-    """Extra information.  It's meaning varies by context."""
+    """Extra information. It's meaning varies by context."""
 
     addralign = None
     """Section alignment constraints."""
@@ -1708,19 +1610,19 @@ class ElfSectionHeader(StructBase):
     data = None
     """The original contents of the section, if the section has no address."""
 
-    def unpack_from(self, block, offset=0):
+    def unpack_from(self, codec, block, offset=0):
         (self.nameoffset, self.type, self.flags, self.addr,
          self.offset, self.size, self.link, self.info,
-         self.addralign, self.entsize) = self.coder.unpack_from(block, offset)
+         self.addralign, self.entsize) = codec.sectionHeader.unpack_from(block, offset)
         self.type = SHT.fallback(self.type)
         return self
 
-    def pack_into(self, block, offset=0):
+    def pack_into(self, codec, block, offset=0):
         """
         .. note:: this is a special case.  *block* here must be the
             entire file or we won't know how to place our content.
         """
-        self.coder.pack_into(block, offset,
+        codec.sectionHeader.pack_into(block, offset,
                              self.nameoffset, co2int(self.type), self.flags, self.addr,
                              self.offset, self.size, self.link, self.info,
                              self.addralign, self.entsize)
@@ -1738,17 +1640,6 @@ class ElfSectionHeader(StructBase):
     def __contains__(self, vaddr):
         return vaddr >= self.addr and vaddr < self.addr + self.size
 
-class ElfSectionHeader32b(ElfSectionHeader):
-    coder = struct.Struct(b'>IIIIIIIIII')
-
-class ElfSectionHeader32l(ElfSectionHeader):
-    coder = struct.Struct(b'<IIIIIIIIII')
-
-class ElfSectionHeader64b(ElfSectionHeader):
-    coder = struct.Struct(b'>IIQQQQIIQQ')
-
-class ElfSectionHeader64l(ElfSectionHeader):
-    coder = struct.Struct(b'<IIQQQQIIQQ')
 
 class ElfProgramHeader(StructBase):
     """
@@ -1787,16 +1678,11 @@ class ElfProgramHeader(StructBase):
     """Segment size in bytes in file."""
 
     memsz = None
-    """
-    Segment size in bytes when loaded into memory.  Must be at least
-    :py:attr:`ElfProgramHeader.filesz` or greater.  Extra space is
-    zero'd out.
-    """
+    """Segment size in bytes when loaded into memory.  Must be at least
+    :py:attr:`ElfProgramHeader.filesz` or greater.  Extra space is zeroed out."""
 
     flags = None
-    """
-    Flags for the segment.  Encoded using :py:class:`PF`.
-    """
+    """Flags for the segment.  Encoded using :py:class:`PF`."""
 
     align = None
     """Alignment of both segments in memory as well as in file."""
@@ -1831,57 +1717,26 @@ class ElfProgramHeader(StructBase):
     def __contains__(self, vaddr):
         return vaddr >= self.vaddr and vaddr < self.vaddr + self.vsize
 
-class ElfProgramHeader32(ElfProgramHeader):
-    """
-    32 vs 64 bit files have differing element orders.  This class
-    represents the 32 bit element order.
-    """
-
-    def unpack_from(self, block, offset=0):
-        (self.type, self.offset, self.vaddr, self.paddr,
-         self.filesz, self.memsz, self.flags, self.align) = self.coder.unpack_from(block, offset)
+    def unpack_from(self, codec, block, offset=0):
+        if codec.bits == 64:
+            (self.type, self.flags, self.offset, self.vaddr,
+             self.paddr, self.filesz, self.memsz, self.align) = codec.programHeader.unpack_from(block, offset)
+        else:
+            (self.type, self.offset, self.vaddr, self.paddr,
+             self.filesz, self.memsz, self.flags, self.align) = codec.programHeader.unpack_from(block, offset)
         self.type = PT.fallback(self.type)
         return self
 
-    def pack_into(self, block, offset=0):
-        self.coder.pack_into(block, offset,
-                             co2int(self.type), self.offset, self.vaddr, self.paddr,
-                             self.filesz, self.memsz, self.flags, self.align)
+    def pack_into(self, codec, block, offset=0):
+        if codec.bits == 64:
+            codec.programHeader.pack_into(block, offset,
+                                 co2int(self.type), self.flags, self.offset, self.vaddr,
+                                 self.paddr, self.filesz, self.memsz, self.align)
+        else:
+            codec.programHeader.pack_into(block, offset,
+                                 co2int(self.type), self.offset, self.vaddr, self.paddr,
+                                 self.filesz, self.memsz, self.flags, self.align)
         return self
-
-class ElfProgramHeader64(ElfProgramHeader):
-    """
-    32 vs 64 bit files have differing element orders.  This class
-    represents the 64 bit element order.
-    """
-
-    def unpack_from(self, block, offset=0):
-        (self.type, self.flags, self.offset, self.vaddr,
-         self.paddr, self.filesz, self.memsz, self.align) = self.coder.unpack_from(block, offset)
-        self.type = PT.fallback(self.type)
-        return self
-
-    def pack_into(self, block, offset=0):
-        self.coder.pack_into(block, offset,
-                             co2int(self.type), self.flags, self.offset, self.vaddr,
-                             self.paddr, self.filesz, self.memsz, self.align)
-        return self
-
-class ElfProgramHeader32b(ElfProgramHeader32):
-    """Represents big endian byte order."""
-    coder = struct.Struct(b'>IIIIIIII')
-
-class ElfProgramHeader32l(ElfProgramHeader32):
-    """Represents little endian byte order."""
-    coder = struct.Struct(b'<IIIIIIII')
-
-class ElfProgramHeader64b(ElfProgramHeader64):
-    """Represents big endian byte order."""
-    coder = struct.Struct(b'>IIQQQQQQ')
-
-class ElfProgramHeader64l(ElfProgramHeader64):
-    """Represents little endian byte order."""
-    coder = struct.Struct(b'<IIQQQQQQ')
 
 
 class ElfDyn(StructBase):
@@ -1893,13 +1748,13 @@ class ElfDyn(StructBase):
         self.tag = tag
         self.val = val
 
-    def unpack_from(self, block, offset=0):
-        self.tag, self.val = self.coder.unpack_from(block, offset)
+    def unpack_from(self, codec, block, offset=0):
+        self.tag, self.val = codec.dyn.unpack_from(block, offset)
         self.tag = DT.fallback(self.tag)
         return self
 
-    def pack_into(self, block, offset=0):
-        self.coder.pack_into(block, offset, co2int(self.tag), self.val)
+    def pack_into(self, codec, block, offset=0):
+        codec.dyn.pack_into(block, offset, co2int(self.tag), self.val)
         return self
 
     def __repr__(self):
@@ -1908,29 +1763,17 @@ class ElfDyn(StructBase):
                         self.tag.name if self.tag in DT else hex(self.tag),
                         self.val))
 
-class ElfDyn32b(ElfDyn):
-    coder = struct.Struct('>iI')
-
-class ElfDyn32l(ElfDyn):
-    coder = struct.Struct('<iI')
-
-class ElfDyn64b(ElfDyn):
-    coder = struct.Struct('>qQ')
-
-class ElfDyn64l(ElfDyn):
-    coder = struct.Struct('<qQ')
-
 
 class ElfRel(StructBase):
     off = None
     info = None
 
-    def unpack_from(self, block, offset=0):
-        self.off, self.info = self.coder.unpack_from(block, offset)
+    def unpack_from(self, codec, block, offset=0):
+        self.off, self.info = codec.rel.unpack_from(block, offset)
         return self
 
-    def pack_into(self, block, offset=0):
-        self.coder.pack_into(block, offset, self.off, self.info)
+    def pack_into(self, codec, block, offset=0):
+        codec.rel.pack_into(block, offset, self.off, self.info)
         return self
 
     def __repr__(self):
@@ -1938,48 +1781,24 @@ class ElfRel(StructBase):
                 .format(self.__class__.__name__, hex(id(self)),
                     self.off, self.info))
 
-class ElfRel32b(ElfRel):
-    coder = struct.Struct('>II')
-
-class ElfRel32l(ElfRel):
-    coder = struct.Struct('<II')
-
-class ElfRel64b(ElfRel):
-    coder = struct.Struct('>QQ')
-
-class ElfRel64l(ElfRel):
-    coder = struct.Struct('<QQ')
-
 
 class ElfRela(StructBase):
     off = None
     info = None
     addend = None
 
-    def unpack_from(self, block, offset=0):
-        self.off, self.info, self.addend = self.coder.unpack_from(block, offset)
+    def unpack_from(self, codec, block, offset=0):
+        self.off, self.info, self.addend = codec.rela.unpack_from(block, offset)
         return self
 
-    def pack_into(self, block, offset=0):
-        self.coder.pack_into(block, offset, self.off, self.info, self.addend)
+    def pack_into(self, codec, block, offset=0):
+        codec.rela.pack_into(block, offset, self.off, self.info, self.addend)
         return self
 
     def __repr__(self):
         return ('<{0}@{1}: off={2:#x}, info={3:#x}, addend={4:#x}>'
                 .format(self.__class__.__name__, hex(id(self)),
                     self.off, self.info, self.addend))
-
-class ElfRela32b(ElfRela):
-    coder = struct.Struct('>III')
-
-class ElfRela32l(ElfRela):
-    coder = struct.Struct('<III')
-
-class ElfRela64b(ElfRela):
-    coder = struct.Struct('>QQQ')
-
-class ElfRela64l(ElfRela):
-    coder = struct.Struct('<QQQ')
 
 
 class ElfSym(StructBase):
@@ -1992,12 +1811,18 @@ class ElfSym(StructBase):
     shndx = None
     dyn = False
 
-    def unpack_from(self, block, offset=0):
-        self.name_off, self.value, self.size, self.info, self.other, self.shndx = self.coder.unpack_from(block, offset)
+    def unpack_from(self, codec, block, offset=0):
+        if codec.bits == 64:
+            self.name_off, self.info, self.other, self.shndx, self.value, self.size = codec.sym.unpack_from(block, offset)
+        else:
+            self.name_off, self.value, self.size, self.info, self.other, self.shndx = codec.sym.unpack_from(block, offset)
         return self
 
-    def pack_into(self, block, offset=0):
-        self.coder.pack_into(block, offset, self.name_off, self.value, self.size, self.info, self.other, self.shndx)
+    def pack_into(self, codec, block, offset=0):
+        if codec.bits == 64:
+            codec.sym.pack_into(block, offset, self.name_idx, self.info, self.other, self.shndx, self.value, self.size)
+        else:
+            codec.sym.pack_into(block, offset, self.name_off, self.value, self.size, self.info, self.other, self.shndx)
         return self
 
     def __repr__(self):
@@ -2005,71 +1830,65 @@ class ElfSym(StructBase):
                 .format(self.__class__.__name__, hex(id(self)),
                     self.name, self.value, self.size, self.info, self.other, self.shndx, self.dyn))
 
-class ElfSym64(ElfSym):
-    def unpack_from(self, block, offset=0):
-        self.name_off, self.info, self.other, self.shndx, self.value, self.size = self.coder.unpack_from(block, offset)
-        return self
+class Codec:
+    """Base codec for all ElfFile objects"""
+    def __init__(self, order):
+        self.order = order
+        self.fileHeader = struct.Struct(order + self.fileHeader)
+        self.sectionHeader = struct.Struct(order + self.sectionHeader)
+        self.programHeader = struct.Struct(order + self.programHeader)
+        self.dyn = struct.Struct(order + self.dyn)
+        self.rel = struct.Struct(order + self.rel)
+        self.rela = struct.Struct(order + self.rela)
+        self.sym = struct.Struct(order + self.sym)
+        self.verdef = struct.Struct(order + self.verdef)
+        self.versym = struct.Struct(order + self.versym)
+        self.addr = struct.Struct(order + self.addr)
 
-    def pack_into(self, block, offset=0):
-        self.coder.pack_into(block, offset, self.name_idx, self.info, self.other, self.shndx, self.value, self.size)
-        return self
+class Codec32(Codec):
+    """Base codec for 32-bit ElfFile objects"""
+    bits = 32
+    fileHeader = 'HHIIIIIHHHHHH'
+    sectionHeader = 'IIIIIIIIII'
+    programHeader = 'IIIIIIII'
+    dyn = 'iI'
+    rel = 'II'
+    rela = 'III'
+    sym = 'IIIBBH'
+    verdef = ''
+    versym = ''
+    addr = 'I'
 
-class ElfSym32b(ElfSym):
-    coder = struct.Struct('>IIIBBH')
-
-class ElfSym32l(ElfSym):
-    coder = struct.Struct('<IIIBBH')
-
-class ElfSym64b(ElfSym64):
-    coder = struct.Struct('>IBBHQQ')
-
-class ElfSym64l(ElfSym64):
-    coder = struct.Struct('<IBBHQQ')
-
+class Codec64(Codec):
+    """Base codec for 64-bit ElfFile objects"""
+    bits = 64
+    fileHeader = 'HHIQQQIHHHHHH'
+    sectionHeader = 'IIQQQQIIQQ'
+    programHeader = 'IIQQQQQQ'
+    dyn = 'qQ'
+    rel = 'QQ'
+    rela = 'QQQ'
+    sym = 'IBBHQQ'
+    verdef = ''
+    versym = ''
+    addr = 'Q'
 
 class ElfFile32b(ElfFile):
     """Represents 32-bit, big-endian files."""
-    headerClass = ElfFileHeader32b
-    sectionHeaderClass = ElfSectionHeader32b
-    programHeaderClass = ElfProgramHeader32b
-    dynClass = ElfDyn32b
-    relClass = ElfRel32b
-    relaClass = ElfRela32b
-    symClass = ElfSym32b
-    addrPack = struct.Struct('>I')
+    codec = Codec32('>')
 
 class ElfFile32l(ElfFile):
     """Represents 32-bit, little-endian files."""
-    headerClass = ElfFileHeader32l
-    sectionHeaderClass = ElfSectionHeader32l
-    programHeaderClass = ElfProgramHeader32l
-    dynClass = ElfDyn32l
-    relClass = ElfRel32l
-    relaClass = ElfRela32l
-    symClass = ElfSym32l
-    addrPack = struct.Struct('<I')
+    codec = Codec32('<')
 
 class ElfFile64b(ElfFile):
     """Represents 64-bit, big-endian files."""
-    headerClass = ElfFileHeader64b
-    sectionHeaderClass = ElfSectionHeader64b
-    programHeaderClass = ElfProgramHeader64b
-    dynClass = ElfDyn64b
-    relClass = ElfRel64b
-    relaClass = ElfRela64b
-    symClass = ElfSym64b
-    addrPack = struct.Struct('>Q')
+    codec = Codec64('>')
 
 class ElfFile64l(ElfFile):
     """Represents 64-bit, little-endian files."""
-    headerClass = ElfFileHeader64l
-    sectionHeaderClass = ElfSectionHeader64l
-    programHeaderClass = ElfProgramHeader64l
-    dynClass = ElfDyn64l
-    relClass = ElfRel64l
-    relaClass = ElfRela64l
-    symClass = ElfSym64l
-    addrPack = struct.Struct('<Q')
+    codec = Codec64('<')
+
 
 _fileEncodingDict = {
     ElfClass['ELFCLASS32'].code: {

@@ -3,7 +3,7 @@ import os
 
 from util import autolink
 from util import elffile
-from util.elffile import PT
+from util.elffile import PT, ElfProgramHeader
 
 from context import Context
 from linker import Linker
@@ -33,7 +33,7 @@ class Binary:
         # add patch segment
         def new_segment(addr):
             align = 0x1000
-            ph = self.elf.programHeaderClass()
+            ph = ElfProgramHeader()
             ph.data = bytearray()
             ph.type = PT['PT_LOAD'].code
             ph.vaddr = (addr + align - 1) & ~(align - 1)
