@@ -49,7 +49,7 @@ class Code(object):
         return self.name == val or self.code == val
 
     def __repr__(self):
-        return '{} {} {} {}'.format(self.parent, self.name, self.code, self.desc)
+        return '<{}:{}={} "{}">'.format(self.parent.name, self.name, self.code, self.desc)
 
 class Coding(object):
     def __init__(self, name):
@@ -63,14 +63,18 @@ class Coding(object):
         self.bycode[code] = c
 
     def __getitem__(self, key):
+        if key is None:
+            key = 0
         if isinstance(key, Code):
+            if key.parent != self:
+                raise TypeError('mismatched code assignment {} <- {}'.format(self.name, key.parent.name))
             key = key.code
         if isinstance(key, basestring):
             return self.byname.get(key)
         elif isinstance(key, int):
             return self.bycode.get(key)
         else:
-            raise KeyError(key)
+            raise TypeError('key ({}) is {}, but was expecting Code, str, or int'.format(key, type(key)))
 
     def get(self, key, default=None):
         val = self[key]
@@ -99,14 +103,6 @@ class Prop(object):
 
     def __set__(self, obj, val):
         setattr(obj, self.name, self.coding.fallback(val))
-
-def co2int(c):
-    if isinstance(c, int):
-        return c
-    elif isinstance(c, Code):
-        return c.code
-    else:
-        raise TypeError(type(c))
 
 ### START ENUMS ###
 
@@ -679,10 +675,7 @@ def open(name=None, fileobj=None, map=None, block=None):
     else:
         assert False
         
-    return open(name=name,
-                fileobj=fileobj,
-                map=map,
-                block=block)
+    return open(name=name, fileobj=fileobj, map=map, block=block)
 
 class StructBase(object):
     coder = None
@@ -734,13 +727,14 @@ class ElfFileIdent(StructBase):
     """
 
     magic = None
-    elfClass = None
-    elfData = None
+
+    elfClass = Prop(ElfClass)
+    elfData = Prop(ElfData)
     fileVersion = None
-    osabi = None
+    osabi = Prop(ElfOsabi)
     abiversion = None
 
-    coder = struct.Struct(b'4sBBBBBxxxxxxx')
+    coder = struct.Struct(b'=4sBBBBBxxxxxxx')
 
     # size is EI_IDENT
     assert (coder.size == EI_NIDENT), 'coder.size = {0}({0}), EI_NIDENT = {0}({0})'.format(coder.size, type(coder.size),
@@ -752,14 +746,14 @@ class ElfFileIdent(StructBase):
         return self
 
     def pack_into(self, block, offset=0):
-        self.coder.pack_into(block, offset, self.magic, self.elfClass,
-                             self.elfData, self.fileVersion,
-                             self.osabi, self.abiversion)
+        self.coder.pack_into(block, offset, self.magic, self.elfClass.code,
+                             self.elfData.code, self.fileVersion,
+                             self.osabi.code, self.abiversion)
         return self
 
     def __repr__(self):
-        return ('<{0}@{1}: coder={2}, magic=\'{3}\', elfClass={4}, elfData={5}, fileVersion={6}, osabi={7}, abiversion={8}>'
-                .format(self.__class__.__name__, hex(id(self)), self.coder, self.magic.encode('hex'),
+        return ('<{}@{}: magic=\'{}\', elfClass={}, elfData={}, fileVersion={}, osabi={}, abiversion={}>'
+                .format(self.__class__.__name__, hex(id(self)), self.magic.encode('hex'),
                         ElfClass[self.elfClass] if self.elfClass in ElfClass else self.elfClass,
                         ElfData[self.elfData] if self.elfData in ElfData else self.elfData,
                         self.fileVersion, self.osabi, self.abiversion))
@@ -874,13 +868,51 @@ class ElfFile(StructBase):
         :param :py:class:`str` name
         :param :py:class:`ElfFileIdent`
         """
-
         self.name = name
-
         self.ident = ident
         self.header = None
         self.sections = []
         self.progs = []
+
+    @classmethod
+    def create(cls, bits, order, osabi, machine):
+        ident = ElfFileIdent()
+        if   bits == 32:      ident.elfClass = 'ELFCLASS32'
+        elif bits == 64:      ident.elfClass = 'ELFCLASS64'
+        else: raise KeyError('unknown bits {} (must be 32 or 64)'.format(bits))
+
+        if   order == 'little': ident.elfData = 'ELFDATA2LSB'
+        elif order == 'big':    ident.elfData = 'ELFDATA2MSB'
+        else: raise KeyError('unknown order {} (must be big or little)'.format(order))
+
+        for abi, abiobj in ElfOsabi.byname.items():
+            if abi.lower().endswith('_' + osabi):
+                ident.osabi = abiobj
+                break
+        else:
+            raise KeyError('unknown osabi {}'.format(osabi))
+
+        hdr = ElfFileHeader()
+        hdr.type = 'ET_EXEC'
+
+        for em, emobj in EM.byname.items():
+            if em.lower().endswith('_' + machine):
+                hdr.machine = emobj
+                break
+        else:
+            raise KeyError('unknown machine {}'.format(machine))
+
+        ident.magic = str('\x7fELF')
+        ident.fileVersion = 1
+        ident.abiversion = 0
+
+        elf = ElfFile(name='', ident=ident)
+        elf.header = hdr
+        hdr.version = ident.fileVersion
+        hdr.ehsize = elf.codec.fileHeader.size + ident.coder.size
+        hdr.phentsize = elf.codec.programHeader.size
+        hdr.shentsize = elf.codec.sectionHeader.size
+        return elf
 
     def unpack_from(self, block, offset=0):
         """Unpack an entire file."""
@@ -1108,7 +1140,6 @@ class ElfFile(StructBase):
                     phdr.virtual = True
                 break
         else:
-            print("Warning: did not relocate PHDR.")
             phoff = x
             phsize = len(self.progs) * self.header.phentsize
             x += phsize
@@ -1454,14 +1485,6 @@ class ElfFileHeader(StructBase):
     Most attributes are :py:class:`int`'s.  Some have encoded meanings
     which can be decoded with the accompanying
     :py:class:`Coding` subclasses.
-
-    This abstract base class works in tight concert with it's
-    subclasses: :py:class:`ElfFileHeader32b`,
-    :py:class:`ElfFileHeader32l`, :py:class:`ElfFileHeader64b`, and
-    :py:class:`ElfFileHeader64l`.  This base class sets useless
-    defaults and includes any byte order and word size independent
-    methods while the subclasses define byte order and word size
-    dependent methods.
     """
 
     type = Prop(ET)
@@ -1519,26 +1542,24 @@ class ElfFileHeader(StructBase):
          self.phoff, self.shoff, self.flags, self.ehsize,
          self.phentsize, self.phnum, self.shentsize, self.shnum,
          self.shstrndx) = codec.fileHeader.unpack_from(block, offset)
-        self.type = ET.fallback(self.type)
-        self.machine = EM.fallback(self.machine)
         return self
 
     def pack_into(self, codec, block, offset=0):
         assert(self.type in ET)
         assert(self.machine in EM)
 
-        codec.fileHeader.pack_into(block, offset, co2int(self.type), co2int(self.machine),
-                             self.version if self.version != None else 1,
-                             self.entry if self.entry != None else 0,
-                             self.phoff if self.phoff != None else 0,
-                             self.shoff if self.shoff != None else 0,
-                             self.flags if self.flags != None else 0,
-                             self.ehsize if self.ehsize != None else self.codec.fileHeader.size,
-                             self.phentsize if self.phentsize != None else self.codec.programHeader.size,
-                             self.phnum if self.phnum != None else 0,
-                             self.shentsize if self.shentsize != None else self.codec.sectionHeader.size,
-                             self.shnum if self.shnum != None else 0,
-                             self.shstrndx if self.shstrndx != None else 0)
+        codec.fileHeader.pack_into(block, offset, self.type.code, self.machine.code,
+                             self.version if self.version is not None else 1,
+                             self.entry if self.entry is not None else 0,
+                             self.phoff if self.phoff is not None else 0,
+                             self.shoff if self.shoff is not None else 0,
+                             self.flags if self.flags is not None else 0,
+                             self.ehsize if self.ehsize is not None else codec.fileHeader.size + ElfIdent.coder.size,
+                             self.phentsize if self.phentsize is not None else codec.programHeader.size,
+                             self.phnum if self.phnum is not None else 0,
+                             self.shentsize if self.shentsize is not None else codec.sectionHeader.size,
+                             self.shnum if self.shnum is not None else 0,
+                             self.shstrndx if self.shstrndx is not None else 0)
         return self
 
     def __repr__(self):
@@ -1547,8 +1568,8 @@ class ElfFileHeader(StructBase):
                 ' ehsize={9}, phnum={10}, shentsize={11}, shnum={12},'
                 ' shstrndx={13}>'
                 .format(self.__class__.__name__, hex(id(self)), self.type, self.machine,
-                        self.version, hex(self.entry), self.phoff, self.shoff,
-                        hex(self.flags), self.ehsize, self.phnum, self.shentsize,
+                        self.version, hex(self.entry or 0), self.phoff, self.shoff,
+                        hex(self.flags or 0), self.ehsize, self.phnum, self.shentsize,
                         self.shnum, self.shstrndx))
 
 
@@ -1562,14 +1583,6 @@ class ElfSectionHeader(StructBase):
     Most attributes are :py:class:`int`'s.  Some have encoded meanings
     which can be decoded with the accompanying
     :py:class:`Coding` subclasses.
-
-    This abstract base class works in tight concert with it's
-    subclasses: :py:class:`ElfSectionHeader32b`,
-    :py:class:`ElfSectionHeader32l`, :py:class:`ElfSectionHeader64b`,
-    and :py:class:`ElfSectionHeader64l`.  This base class sets useless
-    defaults and includes any byte order and word size independent
-    methods while the subclasses define byte order and word size
-    dependent methods.
     """
 
     nameoffset = None
@@ -1615,7 +1628,6 @@ class ElfSectionHeader(StructBase):
         (self.nameoffset, self.type, self.flags, self.addr,
          self.offset, self.size, self.link, self.info,
          self.addralign, self.entsize) = codec.sectionHeader.unpack_from(block, offset)
-        self.type = SHT.fallback(self.type)
         return self
 
     def pack_into(self, codec, block, offset=0):
@@ -1624,7 +1636,7 @@ class ElfSectionHeader(StructBase):
             entire file or we won't know how to place our content.
         """
         codec.sectionHeader.pack_into(block, offset,
-                             self.nameoffset, co2int(self.type), self.flags, self.addr,
+                             self.nameoffset, self.type.code, self.flags, self.addr,
                              self.offset, self.size, self.link, self.info,
                              self.addralign, self.entsize)
         return self
@@ -1650,14 +1662,6 @@ class ElfProgramHeader(StructBase):
     Most attributes are :py:class:`int`'s.  Some have encoded meanings
     which can be decoded with the accompanying
     :py:class:`Coding` subclasses.
-
-    This abstract base class works in tight concert with it's
-    subclasses: :py:class:`ElfProgramHeader32b`,
-    :py:class:`ElfProgramHeader32l`, :py:class:`ElfProgramHeader64b`,
-    and :py:class:`ElfProgramHeader64l`.  This base class sets useless
-    defaults and includes any byte order and word size independent
-    methods while the subclasses define byte order and word size
-    dependent methods.
     """
 
     PN_XNUM = 0xffff
@@ -1725,23 +1729,22 @@ class ElfProgramHeader(StructBase):
         else:
             (self.type, self.offset, self.vaddr, self.paddr,
              self.filesz, self.memsz, self.flags, self.align) = codec.programHeader.unpack_from(block, offset)
-        self.type = PT.fallback(self.type)
         return self
 
     def pack_into(self, codec, block, offset=0):
         if codec.bits == 64:
             codec.programHeader.pack_into(block, offset,
-                                 co2int(self.type), self.flags, self.offset, self.vaddr,
+                                 self.type.code, self.flags, self.offset, self.vaddr,
                                  self.paddr, self.filesz, self.memsz, self.align)
         else:
             codec.programHeader.pack_into(block, offset,
-                                 co2int(self.type), self.offset, self.vaddr, self.paddr,
+                                 self.type.code, self.offset, self.vaddr, self.paddr,
                                  self.filesz, self.memsz, self.flags, self.align)
         return self
 
 
 class ElfDyn(StructBase):
-    tag = None
+    tag = Prop(DT)
     val = None
     coder = None
 
@@ -1751,11 +1754,10 @@ class ElfDyn(StructBase):
 
     def unpack_from(self, codec, block, offset=0):
         self.tag, self.val = codec.dyn.unpack_from(block, offset)
-        self.tag = DT.fallback(self.tag)
         return self
 
     def pack_into(self, codec, block, offset=0):
-        codec.dyn.pack_into(block, offset, co2int(self.tag), self.val)
+        codec.dyn.pack_into(block, offset, self.tag.code, self.val)
         return self
 
     def __repr__(self):
@@ -1974,13 +1976,13 @@ class ElfFile64l(ElfFile):
 
 
 _fileEncodingDict = {
-    ElfClass['ELFCLASS32'].code: {
-        ElfData['ELFDATA2LSB'].code: ElfFile32l,
-        ElfData['ELFDATA2MSB'].code: ElfFile32b,
+    ElfClass['ELFCLASS32']: {
+        ElfData['ELFDATA2LSB']: ElfFile32l,
+        ElfData['ELFDATA2MSB']: ElfFile32b,
     },
-    ElfClass['ELFCLASS64'].code: {
-        ElfData['ELFDATA2LSB'].code: ElfFile64l,
-        ElfData['ELFDATA2MSB'].code: ElfFile64b,
+    ElfClass['ELFCLASS64']: {
+        ElfData['ELFDATA2LSB']: ElfFile64l,
+        ElfData['ELFDATA2MSB']: ElfFile64b,
     },
 }
 """
