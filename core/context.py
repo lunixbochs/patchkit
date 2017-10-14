@@ -5,7 +5,6 @@ import arch
 import compiler
 from func import Func
 from util import stdlib
-from util.elffile import EM
 from util.patch.dis import irdis, IR, IRStream
 
 def pfcol(s):
@@ -15,13 +14,15 @@ class Context(object):
     def __init__(self, binary, verbose=False):
         self.binary = binary
         self.verbose = verbose
-        machine = EM[binary.elf.header.machine]
-        if machine == EM['EM_386']:
+        machine = binary.elf.header.machine
+        if machine == 'EM_386':
             self.arch = arch.x86()
-        elif machine == EM['EM_X86_64']:
+        elif machine == 'EM_X86_64':
             self.arch = arch.x86_64()
-        elif machine == EM['EM_ARM']:
+        elif machine == 'EM_ARM':
             self.arch = arch.arm()
+        elif machine == 'EM_MIPS':
+            self.arch = arch.mips()
         else:
             raise NotImplementedError("Unknown machine: %s" % machine)
 
