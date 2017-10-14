@@ -51,6 +51,13 @@ class Code(object):
     def __repr__(self):
         return '<{}:{}={} "{}">'.format(self.parent.name, self.name, self.code, self.desc)
 
+class UnknownCode(Code):
+    def __init__(self, parent, code):
+        self.parent = parent
+        self.name = 'UNKNOWN'
+        self.code = code
+        self.desc = None
+
 class Coding(object):
     def __init__(self, name):
         self.name = name
@@ -83,7 +90,7 @@ class Coding(object):
         return val
 
     def fallback(self, key):
-        return self.get(key, key)
+        return self.get(key, UnknownCode(self, key))
 
     def __contains__(self, key):
         if isinstance(key, Code):
@@ -1763,7 +1770,7 @@ class ElfDyn(StructBase):
     def __repr__(self):
         return ('<{0}@{1}: tag={2}, val={3}>'
                 .format(self.__class__.__name__, hex(id(self)),
-                        self.tag.name if self.tag in DT else hex(self.tag),
+                        self.tag.name if self.tag in DT else hex(self.tag.code),
                         self.val))
 
 

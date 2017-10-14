@@ -55,7 +55,7 @@ class Patcher:
                 except Exception:
                     self.debug('Warning: could not preserve patch function order')
                     self.debug(traceback.format_exc())
-                    order = vars(patch).values()
+                    order = [f for f in vars(patch).values() if hasattr(f, '__call__')]
 
                 for func in order:
                     if func.__name__.startswith('_'):
