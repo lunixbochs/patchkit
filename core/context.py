@@ -16,14 +16,18 @@ class Context(object):
         self.binary = binary
         self.verbose = verbose
         machine = EM[binary.elf.header.machine]
+        cflags = self.binary.linker.cflags or ""
         if machine == EM['EM_386']:
             self.arch = arch.x86()
+            cflags += " -m32"
         elif machine == EM['EM_X86_64']:
+            cflags += " -m64"
             self.arch = arch.x86_64()
         elif machine == EM['EM_ARM']:
             self.arch = arch.arm()
         else:
             raise NotImplementedError("Unknown machine: %s" % machine)
+        self.binary.linker.cflags = cflags
 
         self.current_func = None
         self.func_printed = None
