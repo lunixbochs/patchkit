@@ -16,10 +16,13 @@ class Context(object):
         self.binary = binary
         self.verbose = verbose
         machine = EM[binary.elf.header.machine]
+        cflags = binary.linker.cflags
         if machine == EM['EM_386']:
             self.arch = arch.x86()
+            cflags.append('-m32')
         elif machine == EM['EM_X86_64']:
             self.arch = arch.x86_64()
+            cflags.append('-m64')
         elif machine == EM['EM_ARM']:
             self.arch = arch.arm()
         else:

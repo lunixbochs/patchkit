@@ -1,5 +1,4 @@
 import re
-import shlex
 import subprocess
 
 # TODO: last few args are optional, but clang emits them so I'll deal with it if it breaks
@@ -96,9 +95,7 @@ def compile(code, linker, syms=()):
     if 'gcc' in compiler_version and not 'clang' in compiler_version:
         cflags += ['-fleading-underscore', '-fno-toplevel-reorder']
 
-    if linker.cflags:
-        cflags += shlex.split(linker.cflags)
-
+    cflags += linker.cflags
     code = linker.pre(code, syms=syms)
     p = subprocess.Popen(['gcc', '-xc', '-S', '-o-', '-'] + cflags, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     asm, err = p.communicate(code)
