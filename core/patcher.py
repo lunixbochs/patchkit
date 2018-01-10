@@ -10,7 +10,7 @@ class Patcher:
     def __init__(self, binary, verbose=False, cflags=None, silent=False):
         self.bin = Binary(binary)
         self.bin.verbose = verbose
-        self.bin.linker.cflags = cflags
+        self.bin.linker.cflags = cflags or []
         self.patches = []
         self.patchfiles = []
         self.verbose = verbose
