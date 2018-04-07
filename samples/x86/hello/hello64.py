@@ -9,7 +9,7 @@ def patch(pt):
 
     mov rax, 1  # SYS_write
     mov rdi, 1  # fd
-    mov rsi, %d # buf
+    lea rsi, [rip-%#x]
     mov rdx, %d # size
     syscall
 
@@ -18,5 +18,5 @@ def patch(pt):
     pop rdi
     pop rax
     ret
-    ''' % (hello, size))
+    ''' % ((0x19+size), size))
     pt.hook(pt.entry, addr)
