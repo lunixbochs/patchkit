@@ -1,6 +1,7 @@
 def patch(pt):
     hello, size = pt.inject(raw='hello world\n', size=True)
 
+    base = pt.binary.next_alloc()
     addr = pt.inject(asm=r'''
     push rax
     push rdi
@@ -18,5 +19,5 @@ def patch(pt):
     pop rdi
     pop rax
     ret
-    ''' % (size, size))
+    ''' % (base - hello, size))
     pt.hook(pt.entry, addr)
