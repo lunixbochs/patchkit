@@ -1052,7 +1052,7 @@ class ElfFile(StructBase):
                     x = ElfRela()
                     x.off = ent.off
                     x.info = ent.info
-                    x.addend = self.codec.addr.unpack(self.read(x.off, self.addrCoding.size))[0]
+                    x.addend = self.codec.addr.unpack(self.read(x.off, self.codec.addr.size))[0]
                     self.rel.append(x)
 
     def _unpack_ident(self, block, offset):
