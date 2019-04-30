@@ -11,6 +11,9 @@ def pfcol(s):
     return '[\033[1m\033[32m%s\033[0m] ' % s
 
 class Context(object):
+    TRAMPOLINE = 1
+    MEMCPY = 2
+
     def __init__(self, binary, verbose=False):
         self.binary = binary
         self.verbose = verbose
@@ -182,7 +185,7 @@ class Context(object):
                 pass
         self.error(pfcol('SEARCH') + '"%s" not found.' % tmp)
 
-    def hook(self, src, dst, first=False, noentry=False):
+    def hook(self, src, dst, first=False, noentry=False, method=TRAMPOLINE):
         # hooking the entry point is a special, more efficient case
         if src == self.entry and not noentry:
             if first:
@@ -192,29 +195,66 @@ class Context(object):
             self.debug(pfcol('HOOK') + 'ENTRY -> 0x%x' % dst)
             return
         self.debug(pfcol('HOOK') + '@0x%x -> 0x%x' % (src, dst))
-        self.make_writable(src)
+
+        if method == Context.TRAMPOLINE:
+            return self._hook_trampoline(src, dst)
+        elif method == Context.MEMCPY:
+            return self._hook_memcpy(src, dst)
+        else:
+            raise ValueError('Unknown hook method: {}'.format(method))
+
+    def _evict_asm(self, addr, size):
+        evicted = ''
+        # eh we'll just trust that a call won't be anywhere near 64 bytes
+        for ins in self.dis(addr):
+            evicted += ins.bytes
+            if len(evicted) >= size:
+                break
+        return evicted
+
+    def _hook_trampoline(self, src, dst):
+        # trampoline hooks work like this:
+        # 1. evict enough intructions to call our injected addr
+        # 2. inject a trampoline that:
+        #    a. calls our hook
+        #    b. runs the evicted instructions
+        #    c. jumps to after the evicted instructions
+        # 3. replace the evicted instructions with a jump to the hook, padded with nops
+
+        ## BEFORE ##
+        # patch_addr:
+        #   mov rax, 1
+        #   mov rbx, 2
+        # after_patch:
+        #   ret
+        #
+
+        ## AFTER ##
+        # patch_addr:
+        #   jmp trampoline
+        #   nop nop nop nop # (some number of nops)
+        # after_patch:
+        #   ret
+        # trampoline:
+        #   call hook_addr
+        #   mov rax, 1
+        #   mov rax, 2
+        #   jmp after_patch
 
         alloc = self.binary.next_alloc()
-        # TODO: what if call(0) is smaller than the call to our hook?
-        call = self.asm(self.arch.call(alloc), addr=alloc)
+        jmp = self.asm(self.arch.jmp(alloc), addr=src)
+        evicted = self._evict_asm(src, len(jmp))
 
         # our injected code is guaranteed to be sequential and unaligned
         # so we can inject twice and call the first one
-        evicted = ''
-        # eh we'll just trust that a call won't be anywhere near 64 bytes
-        ins = self.dis(src)
-        for ins in ins:
-            evicted += ins.bytes
-            if len(evicted) >= len(call):
-                break
+        trampoline = pt.inject(asm=self.arch.call(dst))
+        pt.inject(raw=evicted)
+        pt.inject(asm=self.arch.jmp(src + len(evicted)))
 
-        evicted = evicted.strip(self.asm(self.arch.nop())) # your loss
-        if len(evicted) == 0 and False:
-            self.patch(src, asm=self.arch.call(dst))
-            return
+        self.patch(src, asm=self.arch.jmp(trampoline), desc='hook')
 
-        # augh I don't like this, need to double-check how MS works
-        # at least recursion works?
+    def _hook_memcpy(self, src, dst):
+        # memcpy hooks work like this: (they are not thread safe)
         # 1. replace patch-site with call to us
         # 2. call hook addr
         # 3. overwrite patch-site with saved data, then a jmp to us
@@ -222,6 +262,14 @@ class Context(object):
         # 5. patch site executes first few instructions, then jmps back to us
         # 6. re-hook the patch site (and remove the jmp)
         # 7. jmp to where the tmp jmp was
+        self.make_writable(src)
+
+        alloc = self.binary.next_alloc()
+        call = self.asm(self.arch.call(alloc), addr=src)
+        evicted = self._evict_asm(len(call))
+
+        # our injected code is guaranteed to be sequential and unaligned
+        # so we can inject twice and call the first one
 
         emptyjmp = self.asm(self.arch.jmp(self.binary.next_alloc()), addr=src)
         jmpoff = src + len(evicted)
