@@ -1429,7 +1429,7 @@ class ElfFile(StructBase):
     def save(self, path):
         """Pack and save elf file to path"""
         self._regen_section_name_table()
-        self._regen_dyn()
+        # self._regen_dyn()
 
         with io.open(path, 'wb') as f:
             x = bytearray(self._size)
