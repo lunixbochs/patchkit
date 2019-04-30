@@ -15,7 +15,7 @@ class Arch:
         asm = '_PKST_:;' + asm
 
         saved = self.ks.syntax
-        if att_syntax:
+        if att_syntax and isinstance(self, (x86, x86_64)):
             self.ks.syntax = KS_OPT_SYNTAX_ATT
         tmp, _ = self.ks.asm(asm, addr=addr)
         self.ks.syntax = saved
