@@ -247,11 +247,11 @@ class Context(object):
 
         # our injected code is guaranteed to be sequential and unaligned
         # so we can inject twice and call the first one
-        trampoline = pt.inject(asm=self.arch.call(dst))
-        pt.inject(raw=evicted)
-        pt.inject(asm=self.arch.jmp(src + len(evicted)))
+        trampoline = self.inject(asm=self.arch.call(dst), internal=True, desc='hook trampoline')
+        self.inject(raw=evicted, internal=True, desc='hook lifted bytes')
+        self.inject(asm=self.arch.jmp(src + len(evicted)), internal=True, desc='hook jump to orig')
 
-        self.patch(src, asm=self.arch.jmp(trampoline), desc='hook')
+        self.patch(src, asm=self.arch.jmp(trampoline), desc='jump to hook trampoline')
 
     def _hook_memcpy(self, src, dst):
         # memcpy hooks work like this: (they are not thread safe)
