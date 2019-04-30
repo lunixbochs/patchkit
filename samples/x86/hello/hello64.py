@@ -6,6 +6,8 @@ def patch(pt):
     push rdi
     push rsi
     push rdx
+    push rcx
+    push r11
 
     mov rax, 1  # SYS_write
     mov rdi, 1  # fd
@@ -13,6 +15,8 @@ def patch(pt):
     mov rdx, %d # size
     syscall
 
+    pop r11
+    pop rcx
     pop rdx
     pop rsi
     pop rdi
