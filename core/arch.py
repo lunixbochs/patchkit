@@ -14,12 +14,21 @@ class Arch:
         # asm start label for use with relative offsets
         asm = '_PKST_:;' + asm
 
-        saved = self.ks.syntax
+        saved = None
         if att_syntax and isinstance(self, (x86, x86_64)):
+            saved = self.ks.syntax
             self.ks.syntax = KS_OPT_SYNTAX_ATT
+
         tmp, _ = self.ks.asm(asm, addr=addr)
-        self.ks.syntax = saved
+
+        if saved is not None:
+            self.ks.syntax = saved
         return ''.join(map(chr, tmp))
+
+    def fmtaddr(self, addr):
+        if isinstance(addr, int):
+            return hex(addr)
+        return addr
 
     def dis(self, raw, addr=0):
         return list(self.cs.disasm(str(raw), addr))
@@ -40,8 +49,8 @@ class x86(Arch):
     _cs = CS_ARCH_X86, CS_MODE_32
     _ks = KS_ARCH_X86, KS_MODE_32
 
-    def call(self, dst): return 'call %s;' % dst
-    def jmp(self, dst):  return 'jmp %s;' % dst
+    def call(self, dst): return 'call %s;' % self.fmtaddr(dst)
+    def jmp(self, dst):  return 'jmp %s;' % self.fmtaddr(dst)
 
     def ret(self): return 'ret;'
     def nop(self): return 'nop;'
@@ -95,8 +104,8 @@ class arm(Arch):
     _cs = CS_ARCH_ARM, CS_MODE_ARM
     _ks = KS_ARCH_ARM, KS_MODE_ARM
 
-    def call(self, dst): return 'bx %s;' % dst
-    def jmp(self, dst):  return 'b %s;' % dst
+    def call(self, dst): return 'bl %s;' % self.fmtaddr(dst)
+    def jmp(self, dst):  return 'b %s;' % self.fmtaddr(dst)
     def ret(self): return 'bx lr;'
     def nop(self): return 'nop;'
 
