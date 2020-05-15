@@ -1,4 +1,4 @@
-#!/bin/bash -u
+#!/usr/bin/env bash
 
 echo
 echo "Take a look here if Unicorn fails to build:"
@@ -13,49 +13,36 @@ echo " brew install pkg-config glib cmake"
 echo
 echo "Using ./build as a tmp dir. ^C if that's a bad idea."
 echo
-echo -n "[press enter to continue]"
-read
+if [ ! "${HEADLESS}" ]; then
+	echo -n "[press enter to continue]"
+	read
+fi
 echo
 
 cwd=$(pwd)
-build="$cwd/build"
+export build="${cwd}/build"
 
 mkdir build &>/dev/null
 set -e
 
 echo "[*] Building Keystone"
-cd "$build"
+cd "${build}"
 git clone https://github.com/keystone-engine/keystone.git
 cd keystone && mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DLLVM_TARGETS_TO_BUILD="all" -G "Unix Makefiles" .. && make -j2
 echo
 
 echo "[*] Building Capstone"
-cd "$build"
+cd "${build}"
 git clone https://github.com/aquynh/capstone.git
 cd capstone && make -j2
 echo
 
 echo "[*] Building Unicorn"
-cd "$build"
+cd "${build}"
 git clone https://github.com/unicorn-engine/unicorn.git
 cd unicorn && ./make.sh
 
-echo
-echo "[*] Installing projects and Python bindings (using sudo)"
-cd "$build/keystone/build" && sudo make install
-cd "$build/keystone/bindings/python" && sudo make install
-
-cd "$build/capstone" && sudo make install
-cd "$build/capstone/bindings/python" && sudo make install
-
-cd "$build/unicorn" && sudo ./make.sh install
-cd "$build/unicorn/bindings/python" && sudo make install
-
-which ldconfig &>/dev/null && sudo ldconfig
-
-echo
-echo "All done!"
-echo
-echo -n "Testing Python import: "
-python -c "import capstone, keystone, unicorn; capstone.CS_ARCH_X86, unicorn.UC_ARCH_X86, keystone.KS_ARCH_X86; print 'works.'"
+if [ ! "${HEADLESS}" ]; then
+	sudo ./install.sh
+fi
