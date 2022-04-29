@@ -63,7 +63,11 @@ class Coding(object):
         if isinstance(key, basestring):
             return self.byname[key]
         elif isinstance(key, int):
-            return self.bycode[key]
+            try:
+                return self.bycode[key]
+            except:
+                print('Unknow key', key)
+                return Code(self, '', 0, '')
         else:
             raise KeyError(key)
 
