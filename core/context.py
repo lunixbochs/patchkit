@@ -344,7 +344,7 @@ class Context(object):
         if typ == 'asm' or kwargs.get('is_asm'):
             size = len(''.join([str(i.bytes) for i in self.dis(addr, len(raw))]))
             if size != len(raw) and not kwargs.get('internal'):
-                self.warn('Assembly patch is not aligned with underlying instructions.')
+                self.warn('Assembly patch is not aligned with underlying instructions. size = ' + str(size) + " raw = " + str(len(raw)) + " addr " + hex(addr))
 
         self._lint(addr, raw, typ, is_asm=kwargs.get('is_asm'))
         if not kwargs.get('silent'):
