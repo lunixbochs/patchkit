@@ -295,6 +295,7 @@ class Context(object):
         return_size = kwargs.get('size', False)
         target = kwargs.get('target', 'patch')
         desc = kwargs.get('desc', '')
+        retWarn = kwargs.get('retWarn', True)
         if desc:
             desc = ' | "%s"' % desc
 
@@ -311,7 +312,7 @@ class Context(object):
         self._lint(addr, raw, typ, is_asm=kwargs.get('is_asm'))
         if typ == 'asm':
             ret = self.asm(self.arch.ret())
-            if raw[-len(ret):] != ret and not internal:
+            if retWarn and raw[-len(ret):] != ret and not internal:
                 self.warn('Injected asm does not return!')
 
         self.info(pfcol('INJECT') + '@0x%x-0x%x%s' % (addr, addr + len(raw), desc))
@@ -330,36 +331,82 @@ class Context(object):
         else:
             return addr
 
+    def genNop(number):
+        if not isinstance(number, int):
+            return
+        ret = ""
+        for x in range(number):
+            ret = ret + "nop;"  
+        return ret
+
+    def checksize(self, addr, **kwargs):
+        raw, typ = self._compile(addr, **kwargs)
+        return len(raw)
+
+    def autoApplyPatch(self, addr, **kwargs):
+        #addr = kwargs.get('addr', '')
+        newAsm = kwargs.get('newAsm', False)
+        oldAsm = kwargs.get('oldAsm', False)
+        desc = kwargs.get('desc', '')
+        checkDep = kwargs.get('checkDep', False)
+        ijAddr = kwargs.get('ijAddr', 0)
+
+        if not checkDep:
+            self.info("")
+
+        oldSize = self.checksize(addr, asm=oldAsm, is_asm=True)
+        newSize = self.checksize(addr, asm=newAsm, is_asm=True)
+
+        if oldSize == newSize:
+            self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
+            return 0
+        elif oldSize > newSize:
+            self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
+            return addr + newSize + 1
+        else: #newSize > oldSize: not enough space to insert
+            if checkDep:
+                self.error(hex(addr) + " Cannot create jump:\"" + newAsm + "\" (" + str(newSize) + " byte) to replace \"" + oldAsm + "\" (" + str(oldSize) + " byte)")
+                return
+
+            self.warn(hex(addr) + " Cannot replace \"" + oldAsm + "\" (" + str(oldSize) + " byte) by \"" + newAsm + "\" (" + str(newSize) + " byte), injecting code.")
+
+            ijAddr = self.inject(asm=newAsm + "; jmp 0x%x" % (addr + oldSize), desc = desc, retWarn = False)
+
+            newJump = 'jmp 0x%x' % ijAddr
+
+            return self.autoApplyPatch(addr, newAsm=newJump, oldAsm=oldAsm, desc = desc, checkDep=True, ijAddr=ijAddr)
+
     def patch(self, addr, **kwargs):
         raw, typ = self._compile(addr, **kwargs)
+        lRaw = len(raw)
         desc = kwargs.get('desc', '')
         if desc:
             desc = ' | "%s"' % desc
 
-        self.info(pfcol('PATCH') + '@0x%x-0x%x%s' % (addr, addr + len(raw), desc))
-        if len(raw) == 0:
+        self.info(pfcol('PATCH') + '@0x%x-0x%x%s' % (addr, addr + lRaw, desc))
+        if lRaw == 0:
             self.warn('Empty patch.')
             return
 
         if typ == 'asm' or kwargs.get('is_asm'):
-            size = len(''.join([str(i.bytes) for i in self.dis(addr, len(raw))]))
-            if size != len(raw) and not kwargs.get('internal'):
-                self.warn('Assembly patch is not aligned with underlying instructions. size = ' + str(size) + " raw = " + str(len(raw)) + " addr " + hex(addr))
+            size = len(''.join([str(i.bytes) for i in self.dis(addr, lRaw)]))
+            if size != lRaw and not kwargs.get('internal'):
+                self.warn('Assembly patch is not aligned with underlying instructions. size = ' + str(size) + " raw = " + str(lRaw) + " addr " + hex(addr + lRaw + 1))
 
         self._lint(addr, raw, typ, is_asm=kwargs.get('is_asm'))
         if not kwargs.get('silent'):
             if typ == 'asm' or kwargs.get('is_asm'):
                 # collapse nulls
-                old = self.elf.read(addr, len(raw))
-                if old == '\0' * len(raw):
-                    self.debug('- %s' % ('00' * len(raw)))
+                old = self.elf.read(addr, lRaw)
+                if old == '\0' * lRaw:
+                    self.debug('- %s' % ('00' * lRaw))
                 else:
-                    for line in self.pdis(self.dis(addr, len(raw))).split('\n'):
+                    for line in self.pdis(self.dis(addr, lRaw)).split('\n'):
                         self.debug('- %s' % line)
                 for line in self.pdis(self.arch.dis(raw, addr=addr)).split('\n'):
                     self.debug('+ %s' % line)
             else:
-                self.debug('- %s' % binascii.hexlify(self.elf.read(addr, len(raw))))
+                self.debug('- %s' % binascii.hexlify(self.elf.read(addr, lRaw)))
                 self.debug('+ %s' % binascii.hexlify(raw))
         self.elf.write(addr, raw)
 
