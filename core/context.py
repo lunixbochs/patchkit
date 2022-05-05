@@ -331,7 +331,7 @@ class Context(object):
         else:
             return addr
 
-    def genNop(number):
+    def genNop(self, number):
         if not isinstance(number, int):
             return
         ret = ""
@@ -361,14 +361,16 @@ class Context(object):
             self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
             return 0
         elif oldSize > newSize:
-            self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
-            return addr + newSize + 1
+            if checkDep:
+                self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
+                return addr + newSize + 1
+            self.patch(addr, asm=newAsm + ";" + self.genNop(oldSize - newSize), is_asm=True, desc = desc)
         else: #newSize > oldSize: not enough space to insert
             if checkDep:
                 self.error(hex(addr) + " Cannot create jump:\"" + newAsm + "\" (" + str(newSize) + " byte) to replace \"" + oldAsm + "\" (" + str(oldSize) + " byte)")
                 return
 
-            self.warn(hex(addr) + " Cannot replace \"" + oldAsm + "\" (" + str(oldSize) + " byte) by \"" + newAsm + "\" (" + str(newSize) + " byte), injecting code.")
+            self.warn(hex(addr) + " Code space is " + str(oldSize) + " byte, new code need " + str(newSize) + " byte, injecting mode")
 
             ijAddr = self.inject(asm=newAsm + "; jmp 0x%x" % (addr + oldSize), desc = desc, retWarn = False)
 
