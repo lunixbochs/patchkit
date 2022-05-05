@@ -15,6 +15,30 @@ Contains one or more Python patch files, which will be executed in alphabetical 
 Patch Examples
 ----
 
+autoApplyPatch:
+
+    def simple_patch(pt):
+        pt.autoApplyPatch(addr = 0x1182, newAsm="mov rax, rdi; mov ebx, esi", oldAsm="mov eax, edi; mov ebx, esi", desc="")
+
+- Enough code space for the patch: If the old code size is BIGGER or EQUAL than the new code size: patch directly
+- Not enough code space for the patch: If the old code size is SMALLER than the new code size:
+    + Create the new inject code with jmp to return to the next original instruction automatically.
+    + Create the new jmp instruction to jump to the new injected code.
+        * If the old code size is BIGGER or EQUAL than the jmp code size: patch the jum then finish this patch.
+        * If the old code size is SMALLER than the new jmp size: show error and skip this patch, the new injected code still be keep, so you can create the jmp by yourself later.
+
+
+checksize: return the code size for a/a set of instruction(s)
+
+    def simple_patch(pt):
+        codeSize = pt.checksize(addr = 0x1182, asm="mov rax, rdi; mov ebx, esi", is_asm=True)
+
+genNop: return the number of nop instruction(s)
+
+    def simple_patch(pt):
+        asm = genNop(3)
+        #asm is now "nop;nop;nop;"
+
 Nopping an address, injecting an assembly function, and hooking the entry point:
 
     def simple_patch(pt):
