@@ -15,7 +15,7 @@ Contains one or more Python patch files, which will be executed in alphabetical 
 Patch Examples
 ----
 
-autoApplyPatch:
+autoApplyPatch: Auto replace the original ASM code by a new asm code. You just need to call this function then it will take care everything for you.
 ```python
 
     def simple_patch(pt):
