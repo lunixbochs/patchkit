@@ -345,16 +345,30 @@ class Context(object):
 
     def autoApplyPatch(self, addr, **kwargs):
         #addr = kwargs.get('addr', '')
-        newAsm = kwargs.get('newAsm', False)
-        oldAsm = kwargs.get('oldAsm', False)
+        newAsm = kwargs.get('newAsm', False).rstrip()
+        oldAsm = kwargs.get('oldAsm', False).rstrip()
         desc = kwargs.get('desc', '')
         checkDep = kwargs.get('checkDep', False)
         ijAddr = kwargs.get('ijAddr', 0)
+
+
+        newAsm = newAsm.split("\n")
+        for i in range(len(newAsm)):
+            newAsm[i] = newAsm[i].split(" #")
+            newAsm[i] = newAsm[i][0]
+        s = "\n"
+
+        newAsm = s.join(newAsm)
 
         if not checkDep:
             self.info("")
 
         oldSize = self.checksize(addr, asm=oldAsm, is_asm=True)
+
+        nextAddress = addr + oldSize
+
+        newAsm = newAsm.replace("0xReturnAddress", "0x%x" % nextAddress)
+
         newSize = self.checksize(addr, asm=newAsm, is_asm=True)
 
         if oldSize == newSize:
@@ -364,19 +378,30 @@ class Context(object):
             if checkDep:
                 self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
                 return addr + newSize + 1
-            self.patch(addr, asm=newAsm + ";" + self.genNop(oldSize - newSize), is_asm=True, desc = desc)
+
+            #check if we can use jmp instead of nop
+            adding = "jmp 0x%x" % nextAddress
+            jmpSize = self.checksize(addr, asm=adding, is_asm=True)
+            if oldSize - newSize <= jmpSize + 6:
+                adding = self.genNop(oldSize - newSize)
+            elif oldSize - newSize - jmpSize > 0:
+                adding = adding + "\n" + self.genNop(oldSize - newSize - jmpSize)
+
+            self.patch(addr, asm=newAsm + ";" + adding, is_asm=True, desc = desc)
         else: #newSize > oldSize: not enough space to insert
             if checkDep:
                 self.error(hex(addr) + " Cannot create jump:\"" + newAsm + "\" (" + str(newSize) + " byte) to replace \"" + oldAsm + "\" (" + str(oldSize) + " byte)")
                 return
+            if desc:
+                desc = ' | "%s"' % desc
 
-            self.warn(hex(addr) + " Code space is " + str(oldSize) + " byte, new code need " + str(newSize) + " byte, injecting mode")
+            self.warn(hex(addr) + " Code space is " + str(oldSize) + " byte, new code need " + str(newSize) + " byte, injecting mode" + desc)
 
-            ijAddr = self.inject(asm=newAsm + "; jmp 0x%x" % (addr + oldSize), desc = desc, retWarn = False)
+            ijAddr = self.inject(asm=newAsm + "; jmp 0x%x" % nextAddress, desc = "", retWarn = False)
 
             newJump = 'jmp 0x%x' % ijAddr
 
-            return self.autoApplyPatch(addr, newAsm=newJump, oldAsm=oldAsm, desc = desc, checkDep=True, ijAddr=ijAddr)
+            return self.autoApplyPatch(addr, newAsm=newJump, oldAsm=oldAsm, desc = "", checkDep=True, ijAddr=ijAddr)
 
     def patch(self, addr, **kwargs):
         raw, typ = self._compile(addr, **kwargs)

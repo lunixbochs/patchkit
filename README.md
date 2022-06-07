@@ -20,12 +20,32 @@ autoApplyPatch:
     def simple_patch(pt):
         pt.autoApplyPatch(addr = 0x1182, newAsm="mov rax, rdi; mov ebx, esi", oldAsm="mov eax, edi; mov ebx, esi", desc="")
 
-- Enough code space for the patch: If the old code size is BIGGER or EQUAL than the new code size: patch directly
+- Enough code space for the patch: If the old code size is BIGGER or EQUAL than the new code size: patch directly, nop command will be used to fill for the rest, a jmp also be added incase we have too many nop command.
 - Not enough code space for the patch: If the old code size is SMALLER than the new code size:
     + Create the new inject code with jmp to return to the next original instruction automatically.
     + Create the new jmp instruction to jump to the new injected code.
         * If the old code size is BIGGER or EQUAL than the jmp code size: patch the jum then finish this patch.
         * If the old code size is SMALLER than the new jmp size: show error and skip this patch, the new injected code still be keep, so you can create the jmp by yourself later.
+- This function support comment on the asm code:
+    newAsm = """
+    # whole line comment
+    mov rax, rdi                # this is comment
+    mov ebx, esi                # everything after # will be ignored
+    xor rax, rax; sub ebx, 1;   # this style also be accepted
+    """
+    pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
+- This function support 0xReturnAddress variable:
+    newAsm = """
+    mov rax, rdi
+    test rax, rax
+    jz 0xReturnAddress          # Check and ignore the rest of custom asm code,
+    test esi, esi
+    jnz 0xReturnAddress         # Check and ignore the rest of custom asm code,
+    mov ebx, esi
+    xor rax, rax
+    sub ebx, 1
+    """
+    pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
 
 
 checksize: return the code size for a/a set of instruction(s)

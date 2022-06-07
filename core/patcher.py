@@ -63,7 +63,7 @@ class Patcher:
                         continue
 
                     if hasattr(func, '__call__'):
-                        self.debug(' [+] %s()' % func.__name__)
+                        self.debug('\n [+] %s()' % func.__name__)
                         with self.bin.collect() as patchset:
                             try:
                                 func(patchset)
