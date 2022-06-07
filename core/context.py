@@ -345,20 +345,26 @@ class Context(object):
 
     def autoApplyPatch(self, addr, **kwargs):
         #addr = kwargs.get('addr', '')
-        newAsm = kwargs.get('newAsm', False).rstrip()
-        oldAsm = kwargs.get('oldAsm', False).rstrip()
+        newAsm = kwargs.get('newAsm', False).rstrip().lstrip()
+        oldAsm = kwargs.get('oldAsm', False).rstrip().lstrip()
         desc = kwargs.get('desc', '')
         checkDep = kwargs.get('checkDep', False)
         ijAddr = kwargs.get('ijAddr', 0)
 
 
+        lastNewAsm = ""
         newAsm = newAsm.split("\n")
         for i in range(len(newAsm)):
             newAsm[i] = newAsm[i].split(" #")
-            newAsm[i] = newAsm[i][0]
+            newAsm[i] = newAsm[i][0].rstrip().lstrip()
+            if len(newAsm[i]) > 0:
+                lastNewAsm = newAsm[i]
         s = "\n"
-
         newAsm = s.join(newAsm)
+
+        lastNewAsm = lastNewAsm.split(" ")
+
+        needAddJump = (lastNewAsm[0].lower() !="jmp")
 
         if not checkDep:
             self.info("")
@@ -379,8 +385,11 @@ class Context(object):
                 self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
                 return addr + newSize + 1
 
+            if needAddJump:
+                adding = "jmp 0x%x" % nextAddress
+            else:
+                adding = ""
             #check if we can use jmp instead of nop
-            adding = "jmp 0x%x" % nextAddress
             jmpSize = self.checksize(addr, asm=adding, is_asm=True)
             if oldSize - newSize <= jmpSize + 6:
                 adding = self.genNop(oldSize - newSize)
@@ -397,7 +406,9 @@ class Context(object):
 
             self.warn(hex(addr) + " Code space is " + str(oldSize) + " byte, new code need " + str(newSize) + " byte, injecting mode" + desc)
 
-            ijAddr = self.inject(asm=newAsm + "; jmp 0x%x" % nextAddress, desc = "", retWarn = False)
+            if needAddJump:
+                newAsm = newAsm + "; jmp 0x%x" % nextAddress
+            ijAddr = self.inject(asm=newAsm, desc = "", retWarn = False)
 
             newJump = 'jmp 0x%x' % ijAddr
 
