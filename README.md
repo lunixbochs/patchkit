@@ -103,6 +103,9 @@ API
     hook(addr, new_addr)
     patch(addr, *compile arg*)
     addr = inject(*compile arg*)
+    autoApplyPatch
+    checksize
+    genNop
 
     *compile arg* is any of the following:
       raw='data'
