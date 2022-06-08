@@ -345,8 +345,9 @@ class Context(object):
 
     def autoApplyPatch(self, addr, **kwargs):
         #addr = kwargs.get('addr', '')
-        newAsm = kwargs.get('newAsm', False).rstrip().lstrip()
-        oldAsm = kwargs.get('oldAsm', False).rstrip().lstrip()
+        newAsm = kwargs.get('newAsm', "").rstrip().lstrip()
+        oldAsm = kwargs.get('oldAsm', "").rstrip().lstrip()
+        postAsm = kwargs.get('postAsm', "").rstrip().lstrip()
         desc = kwargs.get('desc', '')
         checkDep = kwargs.get('checkDep', False)
         ijAddr = kwargs.get('ijAddr', 0)
@@ -364,7 +365,7 @@ class Context(object):
 
         lastNewAsm = lastNewAsm.split(" ")
 
-        needAddJump = (lastNewAsm[0].lower() !="jmp")
+        needAddJump = (lastNewAsm[0].lower() !="jmp" and lastNewAsm[0].lower() !="ret")
 
         if not checkDep:
             self.info("")
@@ -372,6 +373,9 @@ class Context(object):
         oldSize = self.checksize(addr, asm=oldAsm, is_asm=True)
 
         nextAddress = addr + oldSize
+
+        if len(postAsm) > 0:
+            nextAddress = self.inject(asm=postAsm + "\njmp 0x%x" % nextAddress , desc = 'post-asm | "%s"' % desc, retWarn = False)
 
         newAsm = newAsm.replace("0xReturnAddress", "0x%x" % nextAddress)
 

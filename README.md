@@ -37,7 +37,7 @@ autoApplyPatch: Auto replace the original ASM code by a new asm code. You just n
     """
     pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
 ```
-- This function support 0xReturnAddress variable:
+- This function support 0xReturnAddress variable inside the ASM code:
 ```python
     newAsm = """
     mov rax, rdi
@@ -50,6 +50,34 @@ autoApplyPatch: Auto replace the original ASM code by a new asm code. You just n
     sub ebx, 1
     """
     pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
+```
+- This function support postAsm parametter:
+    + This is a special ASM which ALWAYS be excute after the new ASM inserted, just before jmp out
+    + You should use this when have more than one break jump in your new ASM code
+    + It only be executed with jump to 0xReturnAddress and end of script. If you have any other jump instruction, that code won't execute
+    + Example: below code with push rax at beginning and it will always execute the pop rax when finish
+```python
+    postAsm = """
+    pop     rax             #restore rax
+    """
+    
+    newAsm = """
+    push    rax             #backup rax
+    
+    mov rax, rdi
+    test rax, rax
+    jz 0xReturnAddress         
+    test esi, esi
+    jnz 0xReturnAddress
+    mov ebx, esi
+    xor rax, rax    
+    
+    test ebx, ebx
+    jz 0x12345              #WARNING: This jump instuction won't execute the postAsm, so some time it will cause error, such as this case it's missing a POP command
+    
+    sub ebx, 1
+    """
+    pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, postAsm=postAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
 ```
 
 checksize: return the code size for a/a set of instruction(s)
