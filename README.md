@@ -52,7 +52,7 @@ autoApplyPatch: Auto replace the original ASM code by a new asm code. You just n
     pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
 ```
 - This function support postAsm parametter:
-    + This is a special ASM which ALWAYS be excute after the new ASM inserted, just before jmp out
+    + This is a special ASM which ALWAYS be excuted after the new ASM inserted, just before jmp out
     + You should use this when have more than one break jump in your new ASM code
     + It only be executed with jump to 0xReturnAddress and end of script. If you have any other jump instruction, that code won't execute
     + Example: below code with push rax at beginning and it will always execute the pop rax when finish
