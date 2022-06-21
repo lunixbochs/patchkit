@@ -343,6 +343,24 @@ class Context(object):
         raw, typ = self._compile(addr, **kwargs)
         return len(raw)
 
+    def autoReplaceString(self, addr, **kwargs):
+        newStr = kwargs.get('newStr', "")
+        oldStr = kwargs.get('oldStr', "")
+        desc = kwargs.get('desc', '')
+
+        if (len(newStr) > len(oldStr) and len(oldStr) > 0):
+            self.error(hex(addr) + " " + desc + " new string is too long.")
+            return
+
+        if len(oldStr) > len(newStr):
+            string_val = "\0" * (len(oldStr) - len(newStr)) * 2
+            newStr = newStr + string_val
+
+        hnewStr = "".join([hex(ord(x)) for x in newStr]).replace("0x", "")
+
+        self.patch(addr, hex=hnewStr, desc=desc)        
+
+
     def autoApplyPatch(self, addr, **kwargs):
         #addr = kwargs.get('addr', '')
         newAsm = kwargs.get('newAsm', "").rstrip().lstrip()

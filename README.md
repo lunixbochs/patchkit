@@ -80,6 +80,16 @@ autoApplyPatch: Auto replace the original ASM code by a new asm code. You just n
     pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, postAsm=postAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
 ```
 
+autoReplaceString: auto replace a string data
+```python
+
+    def simple_patch(pt):
+        pt.autoReplaceString(0x4D5110, newStr = "I hate Apple", oldStr="This is an apple", desc="Apply new text and fill zero for the rest")
+        
+        pt.autoReplaceString(0x4D5110, newStr = "This is an apple", oldStr="I hate Apple", desc="This action will be ignored because the old text is too short")
+```
+
+
 checksize: return the code size for a/a set of instruction(s)
 
 ```python
@@ -132,6 +142,7 @@ API
     patch(addr, *compile arg*)
     addr = inject(*compile arg*)
     autoApplyPatch
+    autoReplaceString
     checksize
     genNop
 
