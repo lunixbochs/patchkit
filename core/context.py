@@ -383,19 +383,20 @@ class Context(object):
 
         lastNewAsm = lastNewAsm.split(" ")
 
-        needAddJump = (lastNewAsm[0].lower() !="jmp" and lastNewAsm[0].lower() !="ret")
+        needAddJump = (lastNewAsm[0].lower() !="jmp" and lastNewAsm[0].lower() !="ret" and lastNewAsm[0].lower() !="retn") 
 
         if not checkDep:
             self.info("")
 
         oldSize = self.checksize(addr, asm=oldAsm, is_asm=True)
 
-        nextAddress = addr + oldSize
+        realNextAddress = nextAddress = addr + oldSize
 
         if len(postAsm) > 0:
             nextAddress = self.inject(asm=postAsm + "\njmp 0x%x" % nextAddress , desc = 'post-asm | "%s"' % desc, retWarn = False)
 
         newAsm = newAsm.replace("0xReturnAddress", "0x%x" % nextAddress)
+        newAsm = newAsm.replace("0xRealReturnAddress", "0x%x" % realNextAddress)
 
         newSize = self.checksize(addr, asm=newAsm, is_asm=True)
 
@@ -409,13 +410,15 @@ class Context(object):
 
             if needAddJump:
                 adding = "jmp 0x%x" % nextAddress
+                jmpSize = self.checksize(addr + newSize, asm=adding, is_asm=True)
             else:
                 adding = ""
+                jmpSize = 0
             #check if we can use jmp instead of nop
-            jmpSize = self.checksize(addr, asm=adding, is_asm=True)
-            if oldSize - newSize <= jmpSize + 6:
+            
+            if oldSize - newSize <= jmpSize + 6:    #If the remaining space is less than 6 nop in case we add jmp, just ignore the jump and add nop only
                 adding = self.genNop(oldSize - newSize)
-            elif oldSize - newSize - jmpSize > 0:
+            else: #if oldSize - newSize - jmpSize > 0:   #Otherwise, if enough space for jump, just add it
                 adding = adding + "\n" + self.genNop(oldSize - newSize - jmpSize)
 
             self.patch(addr, asm=newAsm + ";" + adding, is_asm=True, desc = desc)
