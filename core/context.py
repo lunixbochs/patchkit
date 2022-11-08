@@ -393,6 +393,7 @@ class Context(object):
         realNextAddress = nextAddress = addr + oldSize
 
         if len(postAsm) > 0:
+            postAsm = postAsm.replace("0xRealReturnAddress", "0x%x" % realNextAddress)
             nextAddress = self.inject(asm=postAsm + "\njmp 0x%x" % nextAddress , desc = 'post-asm | "%s"' % desc, retWarn = False)
 
         newAsm = newAsm.replace("0xReturnAddress", "0x%x" % nextAddress)
