@@ -212,7 +212,7 @@ class Ins(Base):
             if opcls:
                 ops.append(opcls.fromop(ins, op))
             else:
-                print 'UNSUPPORTED OP', op, ins.op_str
+                print('UNSUPPORTED OP', op, ins.op_str)
                 assert(False)
 
         c = cls(ins.mnemonic, *ops)

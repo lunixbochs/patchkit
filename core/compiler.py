@@ -40,7 +40,7 @@ def clean(asm):
             elif section.startswith(('.text', '__TEXT')):
                 cur = text
             else:
-                print 'unknown section', section
+                print('unknown section', section)
             continue
 
         if line.startswith('.text'):
@@ -78,7 +78,7 @@ def clean(asm):
         '''
         if line.startswith('.') and not line.endswith(':'):
             if not line.startswith(('.long', '.byte')):
-                print line
+                print(line)
         '''
 
         cur.append(line)
@@ -102,7 +102,7 @@ def compile(code, linker, syms=()):
     if 'error:' in err.lower():
         raise BuildError(err)
     elif err:
-        print err
+        print(err)
 
     asm = linker.post(asm, syms=syms)
     asm = clean(asm)

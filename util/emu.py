@@ -130,7 +130,7 @@ class Backtrack:
         uc = self.uc
         self.last_addr = entry
 
-        print '  [BACKTRACK] Running once:'
+        print('  [BACKTRACK] Running once:')
         self.recv_hist = []
         # stop emulator on receive() spam
         def hook_intr(uc, intno, user):
@@ -148,14 +148,14 @@ class Backtrack:
         self.emu.verbose = False
         self.emu.block_timeout = 1
 
-        print '  [BACKTRACK] Backtracking...'
+        print('  [BACKTRACK] Backtracking...')
         last = time.time()
         finished = 0
         while self.targets:
             now = time.time()
             if now - last > 1:
                 last = now
-                print '  [BACKTRACK] %d/%d' % (finished, finished + len(self.targets))
+                print('  [BACKTRACK] %d/%d' % (finished, finished + len(self.targets)))
 
             addr, transaction = self.targets.pop(-1)
             transaction.rewind()
@@ -167,7 +167,7 @@ class Backtrack:
             except Exception as e:
                 pass
             finished += 1
-        print '  [BACKTRACK] Finished (%d/%d)' % (finished, finished + len(self.targets))
+        print('  [BACKTRACK] Finished (%d/%d)' % (finished, finished + len(self.targets)))
         uc.hook_del(hh)
 
 class Emu:

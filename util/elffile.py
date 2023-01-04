@@ -60,7 +60,7 @@ class Coding(object):
         self.bycode[code] = c
 
     def __getitem__(self, key):
-        if isinstance(key, basestring):
+        if isinstance(key, str):
             return self.byname[key]
         elif isinstance(key, int):
             return self.bycode[key]

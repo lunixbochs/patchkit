@@ -76,7 +76,7 @@ class Linker:
         if symbols:
             for sym, desc in symbols.items():
                 if sym in self.syms:
-                    print 'Warning: duplicate symbol (%s)' % sym
+                    print('Warning: duplicate symbol (%s)' % sym)
                 self.syms[sym] = (desc, decl)
 
     @staticmethod

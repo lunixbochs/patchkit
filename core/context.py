@@ -76,14 +76,14 @@ class Context(object):
                 if self.current_func:
                     if self.func_printed != self.current_func:
                         if self.func_printed is not None:
-                            print
+                            print()
                         func = self.current_func
-                        print indent + '[FUNC] @0x%x-0x%x' % (func.addr, func.addr + func.size)
+                        print(indent + '[FUNC] @0x%x-0x%x' % (func.addr, func.addr + func.size))
                         self.func_printed = self.current_func
                     indent += ' '
                 if kwargs.get('prefix'):
                     indent += kwargs['prefix'] + ' '
-                print indent + line
+                print(indent + line)
 
         dis = kwargs.get('dis', None)
         if dis:
