@@ -16,7 +16,7 @@ if __name__ == '__main__':
         parser.print_help()
         sys.exit(1)
 
-    args = map(os.path.abspath, args)
+    args = list(map(os.path.abspath, args))
     patchdirs = args[1:]
 
     patch = Patcher(args[0], verbose=options.verbose, silent=not options.verbose)

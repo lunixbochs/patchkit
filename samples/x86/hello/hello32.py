@@ -1,5 +1,5 @@
 def patch(pt):
-    hello, size = pt.inject(raw='hello world\n', size=True)
+    hello, size = pt.inject(raw=b'hello world\n', size=True)
 
     addr = pt.inject(asm=r'''
     push eax

@@ -17,7 +17,7 @@ def _decompose(ins, jmps):
             asm.append('%s _ret' % (invert[jmp.mnemonic]))
             asm.append('jmp local_%d' % (i + 1))
     asm.append('local_4:\n_ret: ret')
-    print '\n'.join(asm)
+    print('\n'.join(asm))
     return '\n'.join(asm)
 
 # try to split word-wise cmp into byte-wise cmp so AFL can path through it

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import binascii
 import difflib
@@ -40,7 +40,7 @@ if __name__ == '__main__':
         backtrack = True
 
     if len(sys.argv) != 3:
-        print 'Usage: %s [--backtrack] <orig> <new>' % sys.argv[0]
+        print('Usage: %s [--backtrack] <orig> <new>' % sys.argv[0])
         sys.exit(1)
 
     bina, binb = sys.argv[1:3]

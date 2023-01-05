@@ -1,3 +1,6 @@
+import codecs
+import sys
+
 import capstone
 import binascii
 
@@ -263,7 +266,7 @@ class Context(object):
         if typ == 'asm' or is_asm:
             dis = self.arch.dis(raw, addr=addr)
             for ins in dis:
-                if ins.bytes == 'ebfe'.decode('hex'):
+                if ins.bytes == codecs.decode('ebfe','hex'):
                     self.warn('JMP 0 emitted!')
 
     def _compile(self, addr, **kwargs):
@@ -319,7 +322,13 @@ class Context(object):
             if typ == 'asm' or is_asm:
                 self.debug(dis=self.arch.dis(raw, addr=addr))
             else:
-                self.debug(binascii.hexlify(raw))
+                if isinstance(raw, str):
+                    self.debug(binascii.hexlify(raw.encode('utf-8')))
+                elif isinstance(raw, bytes):
+                    self.debug(str(raw))
+                else:
+                    raise RuntimeError('unsupported type')
+
 
         addr = self.binary.alloc(len(raw), target=target)
         if mark_func:

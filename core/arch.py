@@ -1,3 +1,4 @@
+import binascii
 import re
 from capstone import *
 from keystone import *
@@ -19,10 +20,10 @@ class Arch:
             self.ks.syntax = KS_OPT_SYNTAX_ATT
         tmp, _ = self.ks.asm(asm, addr=addr)
         self.ks.syntax = saved
-        return ''.join(map(chr, tmp))
+        return ''.join(map(chr, tmp)).encode('latin')
 
     def dis(self, raw, addr=0):
-        return list(self.cs.disasm(str(raw), addr))
+        return list(self.cs.disasm(raw, addr))
 
     def jmp(self, dst):
         raise NotImplementedError

@@ -1,5 +1,5 @@
 def patch(pt):
-    hello, size = pt.inject(raw='hello world\n', size=True)
+    hello, size = pt.inject(raw=b'hello world\n', size=True)
 
     base = pt.binary.next_alloc()
     addr = pt.inject(asm=r'''
