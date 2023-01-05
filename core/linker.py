@@ -1,3 +1,4 @@
+import sys
 from contextlib import contextmanager
 
 import compiler
@@ -37,9 +38,8 @@ class Decl:
             else:
                 pt.info('[LINK] %s' % sym)
             asm = compiler.compile(self.source, linker, syms=self.syms.keys())
-
             table = '\n'.join([pt.arch.jmp('_' + sym) for sym in self.syms.keys()])
-            sep = 'PATCHKITJMPTABLE'
+            sep = b'PATCHKITJMPTABLE'
             asm += ('\n.ascii "%s"\n__JMPTABLE__:\n' % sep) + table
             addr = pt.binary.next_alloc('link')
             raw = pt.asm(asm, addr=addr, att_syntax=True)

@@ -112,17 +112,17 @@ class Context(object):
 
         out = []
         nop_start = 0
-        nop_bytes = ''
+        nop_bytes = b''
         nops = 0
         just = max(len(i.bytes) for i in dis)
 
-        pnop = lambda: ('0x%x: %s nop (x%d)' % (nop_start, binascii.hexlify(nop_bytes).ljust(just * 2), nops))
+        pnop = lambda: ('0x%x: %s nop (x%d)' % (nop_start, binascii.hexlify(nop_bytes).ljust(just * 2).decode(), nops))
 
         for i in dis:
             if i.mnemonic == 'nop':
                 if not nops:
                     nop_start = i.address
-                nop_bytes += str(i.bytes)
+                nop_bytes += bytes(i.bytes)
                 nops += 1
             else:
                 if nops:
@@ -130,7 +130,7 @@ class Context(object):
                     nops = 0
                     nop_bytes = ''
                 data = binascii.hexlify(i.bytes).ljust(just * 2)
-                out.append('0x%x: %s %s %s' % (i.address, data, i.mnemonic, i.op_str))
+                out.append('0x%x: %s %s %s' % (i.address, data.decode(), i.mnemonic, i.op_str))
         if nops:
             out.append(pnop())
         return '\n'.join(out)

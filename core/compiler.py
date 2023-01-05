@@ -92,18 +92,17 @@ def compile(code, linker, syms=()):
     if compiler_version is None:
         compiler_version = subprocess.check_output(['gcc', '--version'])
 
-    if 'gcc' in compiler_version and not 'clang' in compiler_version:
+    if b'gcc' in compiler_version and not b'clang' in compiler_version:
         cflags += ['-fleading-underscore', '-fno-toplevel-reorder']
 
     cflags += linker.cflags
     code = linker.pre(code, syms=syms)
     p = subprocess.Popen(['gcc', '-xc', '-S', '-o-', '-'] + cflags, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    asm, err = p.communicate(code)
-    if 'error:' in err.lower():
+    asm, err = p.communicate(code.encode('latin'))
+    if b'error:' in err.lower():
         raise BuildError(err)
     elif err:
         print(err)
-
-    asm = linker.post(asm, syms=syms)
+    asm = linker.post(asm.decode(), syms=syms)
     asm = clean(asm)
     return asm

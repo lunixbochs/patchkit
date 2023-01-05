@@ -3,6 +3,12 @@ import re
 from capstone import *
 from keystone import *
 
+"""
+from keystone import *
+ks = Ks(KS_ARCH_X86, KS_MODE_64)
+
+
+"""
 class Arch:
     def __init__(self):
         self.cs = Cs(*self._cs)
@@ -13,17 +19,46 @@ class Arch:
         if not asm:
             return ''
         # asm start label for use with relative offsets
-        asm = '_PKST_:;' + asm
+        asm = '_PKST_:;\n' + asm
 
         saved = self.ks.syntax
         if att_syntax:
             self.ks.syntax = KS_OPT_SYNTAX_ATT
+
+        #Keystone doesn't support this instruction
+        asm = asm.replace('endbr64', '')
+
+        #newasm = ''
+        ##print(f'sending keystone asm: {asm}\n addr:{addr}')
+        #for line in asm.split('\n'):
+        #    print(f'checking line: {line}')
+        #    if '.long' in line:
+        #        continue
+        #    if re.match(r'^\d+:', line):
+        #        continue
+        #    newasm += f'{line}\n'
+        #print('------------')
+        #import keystone
+        #for line in newasm.split('\n'):
+        #    print(f'checking line: {line}')
+        #    try:
+        #        tmp, _ = self.ks.asm(line)
+        #        print(tmp)
+        #    except keystone.keystone.KsError as e:
+        #        print(e)
+        #print(newasm)
+
         tmp, _ = self.ks.asm(asm, addr=addr)
         self.ks.syntax = saved
         return ''.join(map(chr, tmp)).encode('latin')
 
     def dis(self, raw, addr=0):
-        return list(self.cs.disasm(raw, addr))
+        if isinstance(raw, bytearray):
+            return list(self.cs.disasm(raw, addr))
+        elif isinstance(raw, str):
+            return list(self.cs.disasm((raw.encode()), addr))
+        else:
+            return list(self.cs.disasm(raw, addr))
 
     def jmp(self, dst):
         raise NotImplementedError
