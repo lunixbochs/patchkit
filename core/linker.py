@@ -40,7 +40,7 @@ class Decl:
             asm = compiler.compile(self.source, linker, syms=self.syms.keys())
             table = '\n'.join([pt.arch.jmp('_' + sym) for sym in self.syms.keys()])
             sep = b'PATCHKITJMPTABLE'
-            asm += ('\n.ascii "%s"\n__JMPTABLE__:\n' % sep) + table
+            asm += ('\n.ascii "%s"\n__JMPTABLE__:\n' % sep.decode()) + table
             addr = pt.binary.next_alloc('link')
             raw = pt.asm(asm, addr=addr, att_syntax=True)
             raw, jmps = raw.rsplit(sep, 1)

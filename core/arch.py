@@ -28,15 +28,19 @@ class Arch:
         #Keystone doesn't support this instruction
         asm = asm.replace('endbr64', '')
 
-        #newasm = ''
-        ##print(f'sending keystone asm: {asm}\n addr:{addr}')
-        #for line in asm.split('\n'):
-        #    print(f'checking line: {line}')
-        #    if '.long' in line:
-        #        continue
-        #    if re.match(r'^\d+:', line):
-        #        continue
-        #    newasm += f'{line}\n'
+        newasm = ''
+        for line in asm.split('\n'):
+            if '.long' in line:
+                x = line.split('\t')
+                if '-' in x[1]:
+                    vals = x[1].split('-')
+                    new_line = f'{x[0]}\t 0x{vals[0].strip()} - 0x{vals[1].strip()} \n'
+                    newasm += new_line
+                    continue
+            if re.match(r'^\d+:', line):
+                continue
+            newasm += f'{line}\n'
+
         #print('------------')
         #import keystone
         #for line in newasm.split('\n'):
@@ -48,7 +52,11 @@ class Arch:
         #        print(e)
         #print(newasm)
 
-        tmp, _ = self.ks.asm(asm, addr=addr)
+        # Problematic instructions:
+        # https://github.com/keystone-engine/keystone/issues/546
+        # leal     -48(%rax,%rdx), %eax
+        # movb     (%rcx,%rdx), %dl
+        tmp, _ = self.ks.asm(newasm, addr=addr)
         self.ks.syntax = saved
         return ''.join(map(chr, tmp)).encode('latin')
 
@@ -77,7 +85,12 @@ class x86(Arch):
     _ks = KS_ARCH_X86, KS_MODE_32
 
     def call(self, dst): return 'call 0x%x;' % dst
-    def jmp(self, dst):  return 'jmp 0x%x;' % dst
+    def jmp(self, dst):
+        print(f'debugging jmp: dst:{dst}')
+        if isinstance(dst, str):
+            return f'jmp {dst}'
+        else:
+            return 'jmp 0x%x;' % dst
 
     def ret(self): return 'ret;'
     def nop(self): return 'nop;'

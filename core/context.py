@@ -205,10 +205,13 @@ class Context(object):
 
         # our injected code is guaranteed to be sequential and unaligned
         # so we can inject twice and call the first one
-        evicted = ''
+        evicted = b''
         # eh we'll just trust that a call won't be anywhere near 64 bytes
-        ins = self.dis(src)
-        for ins in ins:
+        instructs = self.dis(src)
+        for ins in instructs:
+            for b in ins.bytes:
+                sys.stdout.write(f'{hex(b)[1:]} ')
+            sys.stdout.flush()
             evicted += ins.bytes
             if len(evicted) >= len(call):
                 break
@@ -230,7 +233,7 @@ class Context(object):
 
         emptyjmp = self.asm(self.arch.jmp(self.binary.next_alloc()), addr=src)
         jmpoff = src + len(evicted)
-        jmpevict = str(self.elf.read(jmpoff, len(emptyjmp)))
+        jmpevict = self.elf.read(jmpoff, len(emptyjmp))
 
         stage0 = evicted + jmpevict
         # TODO: self.alloc()?
