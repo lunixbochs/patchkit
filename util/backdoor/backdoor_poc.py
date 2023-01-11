@@ -10,7 +10,7 @@ for i in xrange(random.randint(1, 4)):
     for j in xrange(4):
         key[j] = chr(ord(key[j]) ^ ord(c))
 key = ''.join(key)
-print 'sending key', repr(key)
+print('sending key', repr(key))
 p.send(key)
 
 # wait for key response
@@ -19,7 +19,7 @@ buf = ''
 while True:
     buf += p.recv(1)
     if buf[-len(ref):] == ref:
-        print 'got key response'
+        print('got key response')
         break
 
 nonce = p.recv(8).encode('hex')
@@ -29,4 +29,4 @@ sig = sign.communicate()[0].strip().decode('hex')
 p.send(p32(len(sig)))
 p.send(sig)
 flag = p.recv(4)
-print 'flag', repr(flag)
+print('flag', repr(flag))

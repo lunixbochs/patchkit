@@ -60,10 +60,18 @@ class Coding(object):
         self.bycode[code] = c
 
     def __getitem__(self, key):
-        if isinstance(key, basestring):
+        #print(f'type(key): {type(key)}')
+        if isinstance(key, str):
             return self.byname[key]
         elif isinstance(key, int):
-            return self.bycode[key]
+            try:
+                #print(f'hex(key): {hex(key)}: self.bycode[key]: {self.bycode[key]}')
+                #print(f'self.bycode: {len(self.bycode)}, {self.bycode} {hex(key)}')
+                return self.bycode[key]
+            except KeyError:
+                # TODO: Figure out why we're getting a key that we don't have Code section for
+                ret = Code(self, '', '', '')
+                return ret
         else:
             raise KeyError(key)
 
@@ -891,7 +899,7 @@ class ElfFile(StructBase):
                 continue
             p.filesz = len(p.data)
             # FIXME: repatching a file will spew PHDRs at the end of TEXT
-            if p.offset is 0:
+            if 0 == p.offset:
                 p.filesz += phsize
                 x = offset + p.filesz
             else:
@@ -948,12 +956,12 @@ class ElfFile(StructBase):
 
         length = sum([len(s) + 1 for s in strings]) + 1
         data = strtab.data = bytearray(length)
-        data[0] = b'\0'
+        data[0] = 0
         p = 1
         for s in strings:
             data[p:p+len(s)] = s
             p += len(s) + 1
-            data[p - 1] = b'\0'
+            data[p - 1] = 0
 
         for s in self.sections:
             s.nameoffset = data.find(s.name + b'\0')

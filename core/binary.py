@@ -73,7 +73,7 @@ class Binary:
     def alloc(self, size, target='patch'):
         ph = self._seg(target)
         tmp = self.next_alloc(target)
-        ph.data += '\0' * size
+        ph.data += b'\0' * size
         ph.memsz += size
         ph.filesz += size
         return tmp
@@ -87,12 +87,12 @@ class Binary:
     def save(self, path):
         self.nxpatch.flags &= ~1
 
-        print '[+] Saving binary to: %s' % path
+        print('[+] Saving binary to: %s' % path)
         # hooking the entry point is a special case that generates a more efficient call table
         if self.entry_hooks:
             with self.collect() as pt:
                 # call each hook addr then jump to original entry point
-                calls = map(pt.arch.call, self.entry_hooks) + [pt.arch.jmp(pt.entry)]
+                calls = list(map(pt.arch.call, self.entry_hooks)) + [pt.arch.jmp(pt.entry)]
                 addr = pt.inject(asm=';'.join(calls), internal=True)
                 pt.entry = addr
 
@@ -105,4 +105,4 @@ class Binary:
                 self.elf.progs.remove(prog)
 
         self.elf.save(path)
-        os.chmod(path, 0755)
+        os.chmod(path, 0o755)

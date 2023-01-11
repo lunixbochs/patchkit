@@ -1,3 +1,4 @@
+import sys
 from contextlib import contextmanager
 
 import compiler
@@ -37,10 +38,9 @@ class Decl:
             else:
                 pt.info('[LINK] %s' % sym)
             asm = compiler.compile(self.source, linker, syms=self.syms.keys())
-
             table = '\n'.join([pt.arch.jmp('_' + sym) for sym in self.syms.keys()])
-            sep = 'PATCHKITJMPTABLE'
-            asm += ('\n.ascii "%s"\n__JMPTABLE__:\n' % sep) + table
+            sep = b'PATCHKITJMPTABLE'
+            asm += ('\n.ascii "%s"\n__JMPTABLE__:\n' % sep.decode()) + table
             addr = pt.binary.next_alloc('link')
             raw = pt.asm(asm, addr=addr, att_syntax=True)
             raw, jmps = raw.rsplit(sep, 1)
@@ -76,7 +76,7 @@ class Linker:
         if symbols:
             for sym, desc in symbols.items():
                 if sym in self.syms:
-                    print 'Warning: duplicate symbol (%s)' % sym
+                    print('Warning: duplicate symbol (%s)' % sym)
                 self.syms[sym] = (desc, decl)
 
     @staticmethod

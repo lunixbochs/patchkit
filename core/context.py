@@ -1,3 +1,6 @@
+import codecs
+import sys
+
 import capstone
 import binascii
 
@@ -76,14 +79,14 @@ class Context(object):
                 if self.current_func:
                     if self.func_printed != self.current_func:
                         if self.func_printed is not None:
-                            print
+                            print()
                         func = self.current_func
-                        print indent + '[FUNC] @0x%x-0x%x' % (func.addr, func.addr + func.size)
+                        print(indent + '[FUNC] @0x%x-0x%x' % (func.addr, func.addr + func.size))
                         self.func_printed = self.current_func
                     indent += ' '
                 if kwargs.get('prefix'):
                     indent += kwargs['prefix'] + ' '
-                print indent + line
+                print(indent + line)
 
         dis = kwargs.get('dis', None)
         if dis:
@@ -109,17 +112,17 @@ class Context(object):
 
         out = []
         nop_start = 0
-        nop_bytes = ''
+        nop_bytes = b''
         nops = 0
         just = max(len(i.bytes) for i in dis)
 
-        pnop = lambda: ('0x%x: %s nop (x%d)' % (nop_start, binascii.hexlify(nop_bytes).ljust(just * 2), nops))
+        pnop = lambda: ('0x%x: %s nop (x%d)' % (nop_start, binascii.hexlify(nop_bytes).ljust(just * 2).decode(), nops))
 
         for i in dis:
             if i.mnemonic == 'nop':
                 if not nops:
                     nop_start = i.address
-                nop_bytes += str(i.bytes)
+                nop_bytes += bytes(i.bytes)
                 nops += 1
             else:
                 if nops:
@@ -127,7 +130,7 @@ class Context(object):
                     nops = 0
                     nop_bytes = ''
                 data = binascii.hexlify(i.bytes).ljust(just * 2)
-                out.append('0x%x: %s %s %s' % (i.address, data, i.mnemonic, i.op_str))
+                out.append('0x%x: %s %s %s' % (i.address, data.decode(), i.mnemonic, i.op_str))
         if nops:
             out.append(pnop())
         return '\n'.join(out)
@@ -202,10 +205,13 @@ class Context(object):
 
         # our injected code is guaranteed to be sequential and unaligned
         # so we can inject twice and call the first one
-        evicted = ''
+        evicted = b''
         # eh we'll just trust that a call won't be anywhere near 64 bytes
-        ins = self.dis(src)
-        for ins in ins:
+        instructs = self.dis(src)
+        for ins in instructs:
+            for b in ins.bytes:
+                sys.stdout.write(f'{hex(b)[1:]} ')
+            sys.stdout.flush()
             evicted += ins.bytes
             if len(evicted) >= len(call):
                 break
@@ -227,7 +233,7 @@ class Context(object):
 
         emptyjmp = self.asm(self.arch.jmp(self.binary.next_alloc()), addr=src)
         jmpoff = src + len(evicted)
-        jmpevict = str(self.elf.read(jmpoff, len(emptyjmp)))
+        jmpevict = self.elf.read(jmpoff, len(emptyjmp))
 
         stage0 = evicted + jmpevict
         # TODO: self.alloc()?
@@ -263,7 +269,7 @@ class Context(object):
         if typ == 'asm' or is_asm:
             dis = self.arch.dis(raw, addr=addr)
             for ins in dis:
-                if ins.bytes == 'ebfe'.decode('hex'):
+                if ins.bytes == codecs.decode('ebfe','hex'):
                     self.warn('JMP 0 emitted!')
 
     def _compile(self, addr, **kwargs):
@@ -319,7 +325,13 @@ class Context(object):
             if typ == 'asm' or is_asm:
                 self.debug(dis=self.arch.dis(raw, addr=addr))
             else:
-                self.debug(binascii.hexlify(raw))
+                if isinstance(raw, str):
+                    self.debug(binascii.hexlify(raw.encode('utf-8')))
+                elif isinstance(raw, bytes):
+                    self.debug(str(raw))
+                else:
+                    raise RuntimeError('unsupported type')
+
 
         addr = self.binary.alloc(len(raw), target=target)
         if mark_func:
