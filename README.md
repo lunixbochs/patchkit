@@ -1,3 +1,9 @@
+Note: I fixed some bug and add new features:
+- autoApplyPatch: auto apply a new patch into an address (this is a combination of inject, patch and hook)
+- autoReplaceString: auto replace a string data
+- checksize: return the binary size of a set of ASM
+- genNop: generate X number of nop command
+
 patchkit
 ----
 Patches an ELF binary using one or more simple Python scripts.
