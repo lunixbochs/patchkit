@@ -57,6 +57,25 @@
                 "kind": "build",
                 "isDefault": false
             }
-        }
+        },
+        {
+            "label": "Check git status",
+            "type": "shell",
+            "command": "cd /home/duongtc/568E/Haitac/ep01-patching/patchkit && git status",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Check git diff",
+            "type": "shell",
+            "command": "cd /home/duongtc/568E/Haitac/ep01-patching/patchkit && git difftool",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        
     ]
 }
