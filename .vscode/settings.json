@@ -1,0 +1,6 @@
+{
+    "files.exclude": {
+        "*.pyc": true
+    },
+    "cmake.configureOnOpen": false
+}

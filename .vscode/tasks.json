@@ -1,0 +1,62 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [        
+        {
+            "label": "Patch current file",
+            "type": "shell",
+            "command": "cd /home/duongtc/568E/Haitac/ep01-patching/patchkit && patchkit battle ${file} -v",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },        
+        {
+            "label": "Upload to dev",
+            "type": "shell",
+            "command": "cd /home/duongtc/568E/Haitac/ep01-patching/patchkit && ssh root@10.9.1.60 'killall -9 supervisor.battle battle'; scp ./battle.patched 10.9.1.60://home/pirate/battle/bin/battle",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Upload to dev 2",
+            "type": "shell",
+            "command": "cd /home/duongtc/568E/Haitac/ep01-patching/patchkit && ssh root@10.9.1.61 'killall -9 supervisor.battle battle'; scp ./battle.patched 10.9.1.61://home/pirate/battle/bin/battle",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Upload to local 1",
+            "type": "shell",
+            "command": "cd /home/duongtc/568E/Haitac/ep01-patching/patchkit && ssh -p 3232 root@10.18.24.92 'killall -9 supervisor.battle battle'; scp -P 3232 ./battle.patched 10.18.24.92://home/pirate/battle/bin/battle",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Upload to local 2",
+            "type": "shell",
+            "command": "cd /home/duongtc/568E/Haitac/ep01-patching/patchkit && ssh -p 3232 root@10.18.24.75 'killall -9 supervisor.battle battle'; scp -P 3232 ./battle.patched 10.18.24.75://home/pirate/battle/bin/battle",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "z. Patch all",
+            "type": "shell",
+            "command": "cd /home/duongtc/568E/Haitac/ep01-patching/patchkit && patchkit battle patch_script/",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        }
+    ]
+}

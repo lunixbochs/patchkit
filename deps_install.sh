@@ -1,5 +1,7 @@
 #!/bin/bash -u
 
+
+
 echo
 echo "Take a look here if Unicorn fails to build:"
 echo " https://github.com/unicorn-engine/unicorn/blob/master/docs/COMPILE-NIX.md"
@@ -19,54 +21,24 @@ echo
 
 cwd=$(pwd)
 build="$cwd/build"
-
-mkdir -p build &>/dev/null
-
-echo "[*] Clone code"
-echo "[*] Clone Keystone"
-cd "$build"
-git clone https://github.com/keystone-engine/keystone.git
-echo
-
-echo "[*] Clone Capstone"
-cd "$build"
-git clone https://github.com/aquynh/capstone.git
-echo
-
-echo "[*] Clone Unicorn"
-cd "$build"
-git clone https://github.com/unicorn-engine/unicorn.git
-
-
 set -e
-
-echo "[*] Building Keystone"
-cd "$build"
-cd keystone && mkdir -p build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DLLVM_TARGETS_TO_BUILD="all" -G "Unix Makefiles" .. && make -j2
-echo
-
-echo "[*] Building Capstone"
-cd "$build"
-cd capstone && make -j2
-echo
-
-echo "[*] Building Unicorn"
-cd "$build"
-cd unicorn #&& ./make.sh
-mkdir -p build; cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make
 
 echo
 echo "[*] Installing projects and Python bindings (using sudo)"
+
+echo "[*] Installing keystone"
 cd "$build/keystone/build" && sudo make install
+echo "[*] Bindings keystone python"
 cd "$build/keystone/bindings/python" && sudo make install
 
+echo "[*] Installing capstone"
 cd "$build/capstone" && sudo make install
+echo "[*] Bindings capstone python"
 cd "$build/capstone/bindings/python" && sudo make install
 
-cd "$build/unicorn/build/build" && sudo make install
+echo "[*] Installing unicorn"
+cd "$build/unicorn/build/build" && sudo make installwwwwwwdww
+echo "[*] Bindings unicorn python"
 cd "$build/unicorn/bindings/python" && sudo make install
 
 which ldconfig &>/dev/null && sudo ldconfig
