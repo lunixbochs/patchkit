@@ -398,6 +398,7 @@ class Context(object):
 
         newAsm = newAsm.replace("0xReturnAddress", "0x%x" % nextAddress)
         newAsm = newAsm.replace("0xRealReturnAddress", "0x%x" % realNextAddress)
+        newAsm = newAsm.replace("0xBeginOfBlock", "0x%x" % addr)
 
         newSize = self.checksize(addr, asm=newAsm, is_asm=True)
 
