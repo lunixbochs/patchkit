@@ -57,6 +57,21 @@ autoApplyPatch: Auto replace the original ASM code by a new asm code. You just n
     """
     pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
 ```
+- This function support 0xBeginOfBlock variable inside the ASM code:
+```python
+    newAsm = """
+    add r12, 1
+    add eax, 1
+    cmp eax, 5
+    jl 0xBeginOfBlock          # Loop this block until rax >= 5
+    xor eax, eax
+    add edx, 1
+    cmp edx, 5
+    jl 0xBeginOfBlock          # Loop this block until edx >= 5
+    """
+    pt.autoApplyPatch(addr = 0x1182, newAsm=newAsm, oldAsm="mov eax, edi; mov ebx, esi", desc="")
+```
+Assume eax, edx and r12 is zero at beginning, the result of above code is r12 = 25
 - This function support postAsm parametter:
     + This is a special ASM which ALWAYS be excuted after the new inserted ASM, just before it jump out
     + You should use it when have more than one break jump in your new ASM code
