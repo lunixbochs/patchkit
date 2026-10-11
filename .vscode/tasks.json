@@ -1,0 +1,107 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Patch current file",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && patchkit battle ${file} -v",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Upload to dev",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && ${MyProjectHTPS}/upload_patched_dev",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Upload to dev 2",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && ${MyProjectHTPS}/upload_patched_dev2",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Upload to local 1",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && ${MyProjectHTPS}/upload_patched_local",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Upload to local 2",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && ${MyProjectHTPS}/upload_patched_local2",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Upload to local 3",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && ${MyProjectHTPS}/upload_patched_local3",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "z. Patch all",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && patchkit battle patch_script/",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Check git status",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && git status",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Check git diff",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && git difftool",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Git add all changed (exclude new file)",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && git add -u",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Git commit",
+            "type": "shell",
+            "command": "cd ${MyProjectHTP}/patchkit && git commit -m 'Update patch'",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+    ]
+}

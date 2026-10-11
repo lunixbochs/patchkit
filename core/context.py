@@ -8,6 +8,8 @@ from util import stdlib
 from util.elffile import EM
 from util.patch.dis import irdis, IR, IRStream
 
+addedPatchAddress = []
+
 def pfcol(s):
     return '[\033[1m\033[32m%s\033[0m] ' % s
 
@@ -295,6 +297,7 @@ class Context(object):
         return_size = kwargs.get('size', False)
         target = kwargs.get('target', 'patch')
         desc = kwargs.get('desc', '')
+        retWarn = kwargs.get('retWarn', True)
         if desc:
             desc = ' | "%s"' % desc
 
@@ -311,7 +314,7 @@ class Context(object):
         self._lint(addr, raw, typ, is_asm=kwargs.get('is_asm'))
         if typ == 'asm':
             ret = self.asm(self.arch.ret())
-            if raw[-len(ret):] != ret and not internal:
+            if retWarn and raw[-len(ret):] != ret and not internal:
                 self.warn('Injected asm does not return!')
 
         self.info(pfcol('INJECT') + '@0x%x-0x%x%s' % (addr, addr + len(raw), desc))
@@ -330,36 +333,154 @@ class Context(object):
         else:
             return addr
 
+    def genNop(self, number):
+        if not isinstance(number, int):
+            return
+        ret = ""
+        for x in range(number):
+            ret = ret + "nop;"
+        return ret
+
+    def checksize(self, addr, **kwargs):
+        raw, typ = self._compile(addr, **kwargs)
+        return len(raw)
+
+    def autoReplaceString(self, addr, **kwargs):
+        newStr = kwargs.get('newStr', "")
+        oldStr = kwargs.get('oldStr', "")
+        desc = kwargs.get('desc', '')
+
+        if (len(newStr) > len(oldStr) and len(oldStr) > 0):
+            self.error(hex(addr) + " " + desc + " new string is too long.")
+            return
+
+        if len(oldStr) > len(newStr):
+            string_val = "\0" * (len(oldStr) - len(newStr)) * 2
+            newStr = newStr + string_val
+
+        hnewStr = "".join([hex(ord(x)) for x in newStr]).replace("0x", "")
+
+        self.patch(addr, hex=hnewStr, desc=desc)
+
+
+    def autoApplyPatch(self, addr, **kwargs):
+        #addr = kwargs.get('addr', '')
+        newAsm = kwargs.get('newAsm', "").rstrip().lstrip()
+        oldAsm = kwargs.get('oldAsm', "").rstrip().lstrip()
+        postAsm = kwargs.get('postAsm', "").rstrip().lstrip()
+        desc = kwargs.get('desc', '')
+        checkDep = kwargs.get('checkDep', False)
+        ijAddr = kwargs.get('ijAddr', 0)
+        ignoreDuplicate = kwargs.get('ignoreDuplicate', False)
+
+
+        lastNewAsm = ""
+        newAsm = newAsm.split("\n")
+        for i in range(len(newAsm)):
+            newAsm[i] = newAsm[i].split(" #")
+            newAsm[i] = newAsm[i][0].rstrip().lstrip()
+            if len(newAsm[i]) > 0:
+                lastNewAsm = newAsm[i]
+        s = "\n"
+        newAsm = s.join(newAsm)
+
+        lastNewAsm = lastNewAsm.split(" ")
+
+        needAddJump = (lastNewAsm[0].lower() !="jmp" and lastNewAsm[0].lower() !="ret" and lastNewAsm[0].lower() !="retn")
+
+        oldSize = self.checksize(addr, asm=oldAsm, is_asm=True)
+
+        realNextAddress = nextAddress = addr + oldSize
+
+        if not checkDep:
+            self.info("")
+
+            if ignoreDuplicate == False and addr in addedPatchAddress:
+                self.error('Address already has a patch from ' + hex(addr) + " to " + hex(realNextAddress - 1) + " set ignoreDuplicate to True to ignore this.")
+                raise Exception("Add param ignoreDuplicate to ignore this.")
+
+            addedPatchAddress.append(addr)
+
+        if len(postAsm) > 0:
+            postAsm = postAsm.replace("0xRealReturnAddress", "0x%x" % realNextAddress)
+            nextAddress = self.inject(asm=postAsm + "\njmp 0x%x" % nextAddress , desc = 'post-asm | "%s"' % desc, retWarn = False)
+
+        newAsm = newAsm.replace("0xReturnAddress", "0x%x" % nextAddress)
+        newAsm = newAsm.replace("0xRealReturnAddress", "0x%x" % realNextAddress)
+        newAsm = newAsm.replace("0xBeginOfBlock", "0x%x" % addr)
+
+        newSize = self.checksize(addr, asm=newAsm, is_asm=True)
+
+        if oldSize == newSize:
+            self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
+            return 0
+        elif oldSize > newSize:
+            if checkDep:
+                self.patch(addr, asm=newAsm, is_asm=True, desc = desc)
+                return addr + newSize + 1
+
+            if needAddJump:
+                adding = "jmp 0x%x" % nextAddress
+                jmpSize = self.checksize(addr + newSize, asm=adding, is_asm=True)
+            else:
+                adding = ""
+                jmpSize = 0
+            #check if we can use jmp instead of nop
+
+            if oldSize - newSize <= jmpSize + 6:    #If the remaining space is less than 6 nop in case we add jmp, just ignore the jump and add nop only
+                adding = self.genNop(oldSize - newSize)
+            else: #if oldSize - newSize - jmpSize > 0:   #Otherwise, if enough space for jump, just add it
+                adding = adding + "\n" + self.genNop(oldSize - newSize - jmpSize)
+
+            self.patch(addr, asm=newAsm + ";" + adding, is_asm=True, desc = desc)
+        else: #newSize > oldSize: not enough space to insert
+            if checkDep:
+                self.error(hex(addr) + " Cannot create jump:\"" + newAsm + "\" (" + str(newSize) + " byte) to replace \"" + oldAsm + "\" (" + str(oldSize) + " byte)")
+                quit()
+            if desc:
+                desc = ' | "%s"' % desc
+
+            self.warn(hex(addr) + " Code space is " + str(oldSize) + " byte, new code need " + str(newSize) + " byte, injecting mode" + desc)
+
+            if needAddJump:
+                newAsm = newAsm + "; jmp 0x%x" % nextAddress
+            ijAddr = self.inject(asm=newAsm, desc = "", retWarn = False)
+
+            newJump = 'jmp 0x%x' % ijAddr
+
+            return self.autoApplyPatch(addr, newAsm=newJump, oldAsm=oldAsm, desc = "", checkDep=True, ijAddr=ijAddr)
+
     def patch(self, addr, **kwargs):
         raw, typ = self._compile(addr, **kwargs)
+        lRaw = len(raw)
         desc = kwargs.get('desc', '')
         if desc:
             desc = ' | "%s"' % desc
 
-        self.info(pfcol('PATCH') + '@0x%x-0x%x%s' % (addr, addr + len(raw), desc))
-        if len(raw) == 0:
+        self.info(pfcol('PATCH') + '@0x%x-0x%x%s' % (addr, addr + lRaw, desc))
+        if lRaw == 0:
             self.warn('Empty patch.')
             return
 
         if typ == 'asm' or kwargs.get('is_asm'):
-            size = len(''.join([str(i.bytes) for i in self.dis(addr, len(raw))]))
-            if size != len(raw) and not kwargs.get('internal'):
-                self.warn('Assembly patch is not aligned with underlying instructions.')
+            size = len(''.join([str(i.bytes) for i in self.dis(addr, lRaw)]))
+            if size != lRaw and not kwargs.get('internal'):
+                self.warn('Assembly patch is not aligned with underlying instructions. size = ' + str(size) + " raw = " + str(lRaw) + " addr " + hex(addr + lRaw + 1))
 
         self._lint(addr, raw, typ, is_asm=kwargs.get('is_asm'))
         if not kwargs.get('silent'):
             if typ == 'asm' or kwargs.get('is_asm'):
                 # collapse nulls
-                old = self.elf.read(addr, len(raw))
-                if old == '\0' * len(raw):
-                    self.debug('- %s' % ('00' * len(raw)))
+                old = self.elf.read(addr, lRaw)
+                if old == '\0' * lRaw:
+                    self.debug('- %s' % ('00' * lRaw))
                 else:
-                    for line in self.pdis(self.dis(addr, len(raw))).split('\n'):
+                    for line in self.pdis(self.dis(addr, lRaw)).split('\n'):
                         self.debug('- %s' % line)
                 for line in self.pdis(self.arch.dis(raw, addr=addr)).split('\n'):
                     self.debug('+ %s' % line)
             else:
-                self.debug('- %s' % binascii.hexlify(self.elf.read(addr, len(raw))))
+                self.debug('- %s' % binascii.hexlify(self.elf.read(addr, lRaw)))
                 self.debug('+ %s' % binascii.hexlify(raw))
         self.elf.write(addr, raw)
 

@@ -63,7 +63,13 @@ class Coding(object):
         if isinstance(key, basestring):
             return self.byname[key]
         elif isinstance(key, int):
-            return self.bycode[key]
+            #Fix unknow LOAD key 0x6474E553 (KeyError: 1685382483)
+            #Some application compiled by GCC 9 generated LOAD key which patchkit not yet supported, I am not sure what kind of that key but I ignored and it works.
+            try: 
+                return self.bycode[key]
+            except:
+                print('Unknow key', key)
+                return Code(self, '', 0, '')
         else:
             raise KeyError(key)
 
@@ -446,6 +452,7 @@ PT('PT_LOOS', 0x60000000, '')
 PT('PT_GNU_EH_FRAME', 0x6474e550, 'GCC .eh_frame_hdr segment')
 PT('PT_GNU_STACK', 0x6474e551, 'Indicates stack executability')
 PT('PT_GNU_RELRO', 0x6474e552, 'Read only after relocation')
+PT('PT_GNU_PROPERTY', 0x6474e553, 'Describes the .note.gnu.property section')
 PT('PT_LOSUNW', 0x6ffffffa, '')
 PT('PT_SUNWBSS', 0x6ffffffa, 'Sun Specific segment')
 PT('PT_SUNWSTACK', 0x6ffffffb, 'Stack segment')

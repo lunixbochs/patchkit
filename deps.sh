@@ -20,26 +20,43 @@ echo
 cwd=$(pwd)
 build="$cwd/build"
 
-mkdir build &>/dev/null
+mkdir -p build &>/dev/null
+
+echo "[*] Clone code"
+echo "[*] Clone Keystone"
+cd "$build"
+git clone https://github.com/keystone-engine/keystone.git
+echo
+
+echo "[*] Clone Capstone"
+cd "$build"
+git clone https://github.com/aquynh/capstone.git
+echo
+
+echo "[*] Clone Unicorn"
+cd "$build"
+git clone https://github.com/unicorn-engine/unicorn.git
+
+
 set -e
 
 echo "[*] Building Keystone"
 cd "$build"
-git clone https://github.com/keystone-engine/keystone.git
-cd keystone && mkdir build && cd build
+cd keystone && mkdir -p build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DLLVM_TARGETS_TO_BUILD="all" -G "Unix Makefiles" .. && make -j2
 echo
 
 echo "[*] Building Capstone"
 cd "$build"
-git clone https://github.com/aquynh/capstone.git
 cd capstone && make -j2
 echo
 
 echo "[*] Building Unicorn"
 cd "$build"
-git clone https://github.com/unicorn-engine/unicorn.git
-cd unicorn && ./make.sh
+cd unicorn #&& ./make.sh
+mkdir -p build; cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make
 
 echo
 echo "[*] Installing projects and Python bindings (using sudo)"
@@ -49,7 +66,7 @@ cd "$build/keystone/bindings/python" && sudo make install
 cd "$build/capstone" && sudo make install
 cd "$build/capstone/bindings/python" && sudo make install
 
-cd "$build/unicorn" && sudo ./make.sh install
+cd "$build/unicorn/build/build" && sudo make install
 cd "$build/unicorn/bindings/python" && sudo make install
 
 which ldconfig &>/dev/null && sudo ldconfig
